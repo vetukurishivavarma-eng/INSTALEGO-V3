@@ -109,6 +109,7 @@ _FIELD_LABELS: dict[str, tuple[str, ...]] = {
     "assessment_year": ("assessment year", "tax year"),
     "tax_amount_paid": ("tax paid", "amount paid", "tax amount"),
     "receipt_date": ("receipt date", "date of payment", "paid on"),
+    "amount_in_words": ("amount in words", "in words", "rupees in words"),
 }
 
 # Documents present label/value pairs three ways: with a colon in prose, with

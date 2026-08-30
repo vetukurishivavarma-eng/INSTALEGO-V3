@@ -26,13 +26,23 @@ logger = logging.getLogger(__name__)
 MAX_PAYLOAD_CHARS = 8000
 
 
-def deterministic_qa(analysis: CanonicalAnalysis, report: dict[str, Any]) -> list[QAError]:
+def deterministic_qa(
+    analysis: CanonicalAnalysis,
+    report: dict[str, Any],
+    template: dict[str, Any] | None = None,
+) -> list[QAError]:
     """Checks with a correct answer, run in Python.
 
     Anything found here is a real defect in report generation, not a matter of
     opinion, so each one is HIGH and forces regeneration.
+
+    ``template`` is what makes the dropped-field check answerable. Whether a
+    field belongs in a report is the template's decision, not the analysis's,
+    and a check that compares the report against the analysis alone will flag
+    every field a bank deliberately left out.
     """
     errors: list[QAError] = []
+    errors.extend(_dropped_field_errors(analysis, report, template))
 
     reported = report.get("discrepancies") or []
     reported_ids = {str(item.get("id", "")) for item in reported}
@@ -91,6 +101,59 @@ def deterministic_qa(analysis: CanonicalAnalysis, report: dict[str, Any]) -> lis
             )
         )
 
+    return errors
+
+
+def _dropped_field_errors(
+    analysis: CanonicalAnalysis,
+    report: dict[str, Any],
+    template: dict[str, Any] | None,
+) -> list[QAError]:
+    """Every field the template asked for, and the analysis has, must arrive.
+
+    This replaces asking the model to spot missing fields. It could not answer
+    the question it was given: handed only the analysis and the report, it saw
+    a value in one and not the other and reported a defect, which for a bank
+    whose template declares a narrower profile meant four fabricated errors on
+    every report it ever produced. A report that always fails QA teaches
+    reviewers to ignore QA.
+
+    The set comparison is exact and has a right answer, which is precisely the
+    kind of work that belongs in Python.
+    """
+    if not template:
+        return []
+
+    errors: list[QAError] = []
+    for section in template.get("sections") or []:
+        declared = section.get("include_fields")
+        key = section.get("key")
+        if not declared or not key:
+            continue
+
+        rendered = report.get(key)
+        if not isinstance(rendered, dict):
+            continue
+
+        for field_name in declared:
+            expected = analysis.applicant.value_of(field_name)
+            if not expected:
+                continue
+            raw = rendered.get(field_name)
+            actual = raw.get("value") if isinstance(raw, dict) else raw
+            if actual in (None, "", "NOT_AVAILABLE"):
+                errors.append(
+                    QAError(
+                        type="MISSING_FIELD",
+                        field=f"{key}.{field_name}",
+                        description=(
+                            f"{field_name} is declared by the {template.get('template_id')} "
+                            f"template and has the value {expected!r} in the analysis, but "
+                            "did not reach the report"
+                        ),
+                        severity=Severity.HIGH,
+                    )
+                )
     return errors
 
 

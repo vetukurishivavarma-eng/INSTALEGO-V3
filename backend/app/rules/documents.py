@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 
-from app.models.enums import DocumentType, RuleResult, Severity
+from app.models.enums import DocumentType, QualityFlag, RuleResult, Severity
 from app.rules.registry import RuleContext, RuleOutcome, rule
 from app.schemas.discrepancy import CandidateDiscrepancy, EvidenceRef
 
@@ -194,6 +194,62 @@ def unreadable_document(context: RuleContext) -> Iterable[RuleOutcome]:
             category="documents",
             result=RuleResult.PASS,
             reason="every uploaded document was readable",
+        )
+
+
+@rule("documents", "low_classification_confidence")
+def low_classification_confidence(context: RuleContext) -> Iterable[RuleOutcome]:
+    """A document whose type was a close call.
+
+    Type is not a label on a shelf: it selects which fields are extracted and
+    which bank requirement the document satisfies. A borderline call therefore
+    changes what was asked of the document and what it was counted as, and
+    since the classifier is not reproducible run to run, the honest thing is to
+    say when it was close rather than present a coin flip as a fact.
+    """
+    rule_id = "documents.low_classification_confidence"
+    severity = context.config.severity("documents", "low_classification_confidence", Severity.LOW)
+    flagged = False
+
+    for document in context.documents:
+        if QualityFlag.LOW_CLASSIFICATION_CONFIDENCE not in (document.quality_flags or []):
+            continue
+        flagged = True
+        evidence = [_document_evidence(document)]
+        summary = (
+            f"{document.filename} was classified as {document.document_type} with "
+            f"confidence {document.classification_confidence:.2f}. The type decides "
+            "which fields are extracted and which requirement the document "
+            "satisfies, so a close call is worth confirming by eye."
+        )
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="documents",
+            result=RuleResult.REVIEW,
+            field=document.filename,
+            severity=severity,
+            reason=summary,
+            evidence=evidence,
+            candidate=CandidateDiscrepancy(
+                type="LOW_CLASSIFICATION_CONFIDENCE",
+                severity=severity,
+                rule_id=rule_id,
+                origin="RULE_ENGINE",
+                comparison_method="quality",
+                summary=summary,
+                values=[document.document_type],
+                evidence=evidence,
+                needs_reasoning=False,
+                deterministic=True,
+            ),
+        )
+
+    if not flagged:
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="documents",
+            result=RuleResult.PASS,
+            reason="every document was classified confidently",
         )
 
 

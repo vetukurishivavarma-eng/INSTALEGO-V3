@@ -23,6 +23,16 @@ from app.schemas.extraction import ClassificationResult
 
 logger = logging.getLogger(__name__)
 
+# Below this, the type is recorded but treated as unsettled.
+#
+# The label is a model output and is not reproducible: the same sanction letter
+# came back AGREEMENT on one run and LOAN_APPLICATION on the next, from
+# identical pixels and an unchanged prompt, at temperature 0. Nothing can make
+# that deterministic. What can be fixed is the silence — a borderline call now
+# says it was borderline, so a reviewer sees the one decision that quietly
+# selects which fields were even asked for.
+LOW_CLASSIFICATION_CONFIDENCE = 0.70
+
 # How much of the document the classifier is allowed to see.
 MAX_PAGES_FOR_CLASSIFICATION = 3
 MAX_CHARS_FOR_CLASSIFICATION = 4000

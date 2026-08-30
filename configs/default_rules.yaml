@@ -89,6 +89,9 @@ financial:
     enabled: true
     severity: MEDIUM
     tolerance_abs: 1.0
+  amount_in_words_match:
+    enabled: true
+    severity: HIGH
   bank_account_match:
     enabled: true
     severity: MEDIUM
@@ -104,6 +107,9 @@ documents:
     enabled: true
     severity: MEDIUM
   low_ocr_confidence:
+    enabled: true
+    severity: LOW
+  low_classification_confidence:
     enabled: true
     severity: LOW
   unclassified_document:

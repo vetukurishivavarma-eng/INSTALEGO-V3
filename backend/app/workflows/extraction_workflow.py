@@ -18,7 +18,10 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
-from app.agents.document_classifier import DocumentClassifierAgent
+from app.agents.document_classifier import (
+    LOW_CLASSIFICATION_CONFIDENCE,
+    DocumentClassifierAgent,
+)
 from app.agents.document_extractor import DocumentExtractorAgent, canonical_field_for
 from app.extraction import ParsedDocument, ParsingError, parse_document
 from app.extraction.ocr import get_ocr_engine
@@ -100,6 +103,10 @@ def process_document(db: Session, document: Document) -> DocumentOutcome:
         return _fail(db, document, outcome, exc.code, str(exc))
 
     classification = classification_run.data
+    if classification.confidence < LOW_CLASSIFICATION_CONFIDENCE:
+        document.quality_flags = sorted(
+            set(document.quality_flags or []) | {QualityFlag.LOW_CLASSIFICATION_CONFIDENCE}
+        )
     document.document_type = str(classification.document_type)
     document.document_subtype = classification.subtype or None
     document.classification_confidence = classification.confidence
@@ -227,7 +234,11 @@ def _quality_status(document: Document, parsed: ParsedDocument) -> str:
     flags = set(document.quality_flags or [])
     if not parsed.is_readable or QualityFlag.UNREADABLE in flags:
         return DocumentQualityStatus.UNABLE_TO_VERIFY
-    if QualityFlag.UNCLEAR_IMAGE in flags or QualityFlag.LOW_OCR_CONFIDENCE in flags:
+    if (
+        QualityFlag.UNCLEAR_IMAGE in flags
+        or QualityFlag.LOW_OCR_CONFIDENCE in flags
+        or QualityFlag.LOW_CLASSIFICATION_CONFIDENCE in flags
+    ):
         return DocumentQualityStatus.REVIEW_REQUIRED
     if QualityFlag.DUPLICATE_DOCUMENT in flags:
         return DocumentQualityStatus.POTENTIAL_ISSUE

@@ -82,7 +82,7 @@ def generate_report(
             db.flush()
             return report
 
-        deterministic_errors = deterministic_qa(analysis, payload)
+        deterministic_errors = deterministic_qa(analysis, payload, template)
         agent_result = None
         if run_agent_qa:
             try:

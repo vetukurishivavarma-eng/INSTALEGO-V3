@@ -17,6 +17,12 @@ Check for:
 
 Do NOT create new findings.
 
+A report contains only the fields its template declares, and different banks
+declare different ones. A value that is in the analysis and not in the report
+is therefore NOT a defect, and must not be reported as one: whether a field
+belongs is checked in code, against the template, where the answer is exact.
+Judge what is present, not what is absent.
+
 CANONICAL ANALYSIS:
 {{analysis}}
 

@@ -77,6 +77,7 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         "gross_salary",
         "net_salary",
         "deductions",
+        "amount_in_words",
     ],
     DocumentType.LOAN_APPLICATION: [
         "applicant_name",
@@ -91,6 +92,7 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         "employer",
         "designation",
         "income",
+        "amount_in_words",
     ],
     DocumentType.ITR: [
         "name",
@@ -138,6 +140,7 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         "property_value",
         "registration_number",
         "registration_date",
+        "amount_in_words",
     ],
     DocumentType.ENCUMBRANCE_CERTIFICATE: [
         "owner_name",
@@ -185,6 +188,7 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         # A sanction letter is an agreement, and the figure it sanctions is the
         # one worth comparing against the amount the applicant asked for.
         "loan_amount",
+        "amount_in_words",
     ],
     DocumentType.LEGAL_DOCUMENT: [
         "party_one",
@@ -239,6 +243,7 @@ CANONICAL_MAP: dict[str, str] = {
     # conflict on every honest chain of title.
     "seller_name": "seller_name",
     "buyer_name": "buyer_name",
+    "amount_in_words": "amount_in_words",
 }
 
 
@@ -292,6 +297,11 @@ FIELD_DESCRIPTIONS: dict[str, str] = {
     "registration_number": (
         "the number the sub-registrar assigned when the document was "
         "registered - not the survey or khata number"
+    ),
+    "amount_in_words": (
+        "the principal amount written out in words, as documents restate a "
+        "figure - \"Rupees Five Lakh only\". The words alone, without the "
+        "numerals beside them, and only where the document actually writes one"
     ),
     "encumbrance_status": (
         "whether the certificate records any subsisting mortgage, lien or "

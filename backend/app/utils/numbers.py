@@ -82,6 +82,95 @@ def parse_amount(raw: str | int | float | None) -> Decimal | None:
     return -value if negative and value > 0 else value
 
 
+_WORD_UNITS = {
+    "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+    "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12,
+    "thirteen": 13, "fourteen": 14, "fifteen": 15, "sixteen": 16,
+    "seventeen": 17, "eighteen": 18, "nineteen": 19, "twenty": 20,
+    "thirty": 30, "forty": 40, "fourty": 40, "fifty": 50, "sixty": 60,
+    "seventy": 70, "eighty": 80, "ninety": 90,
+}
+# Indian grouping, which is what these documents use. "Hundred" multiplies what
+# came before it; the rest close a group off.
+_WORD_SCALES = {
+    "hundred": Decimal(100),
+    "thousand": Decimal(1_000),
+    "lakh": Decimal(100_000),
+    "lakhs": Decimal(100_000),
+    "lac": Decimal(100_000),
+    "lacs": Decimal(100_000),
+    "million": Decimal(1_000_000),
+    "crore": Decimal(10_000_000),
+    "crores": Decimal(10_000_000),
+    "billion": Decimal(1_000_000_000),
+}
+# Words that carry no value. "Paise" ends the rupee part, so anything after it
+# is dropped rather than added to the total.
+_WORD_NOISE = {"rupees", "rupee", "inr", "rs", "only", "and", "of", "the", "in",
+               "words", "say"}
+_WORD_TOKEN = re.compile(r"[a-z]+")
+
+
+def parse_amount_words(raw: str | None) -> Decimal | None:
+    """Read an amount written out in words, Indian-style.
+
+    "Rupees Five Lakh only" is how a sanction letter states a figure, and where
+    the words and the numerals disagree it is the words that prevail in law.
+    Reading them is the only way to check one against the other.
+
+    Returns None rather than a guess: an unparseable phrase, or one carrying no
+    number at all, is not something to be approximated.
+    """
+    if raw is None:
+        return None
+    text = str(raw).lower()
+    # The paise part is a different unit and is not added to the rupee total.
+    # Cutting at the word "paise" is not enough — "five lakh and fifty paise"
+    # would keep the fifty and report 500050 — so the cut is made at the "and"
+    # that introduces the clause.
+    paise = re.search(r"\bpais[ae]\b", text)
+    if paise:
+        head = text[: paise.start()]
+        conjunction = list(re.finditer(r"\band\b", head))
+        if conjunction:
+            text = head[: conjunction[-1].start()]
+        else:
+            # No conjunction, as in "five lakh fifty paise": the trailing plain
+            # numbers are the paise, and only a scale word ends the rupees.
+            words = _WORD_TOKEN.findall(head)
+            while words and words[-1] in _WORD_UNITS:
+                words.pop()
+            text = " ".join(words)
+
+    tokens = [t for t in _WORD_TOKEN.findall(text) if t not in _WORD_NOISE]
+    if not tokens:
+        return None
+
+    total = Decimal(0)
+    current = Decimal(0)
+    seen_a_number = False
+
+    for token in tokens:
+        if token in _WORD_UNITS:
+            current += Decimal(_WORD_UNITS[token])
+            seen_a_number = True
+        elif token == "hundred":
+            # Multiplies what is being built, rather than closing it.
+            current = (current or Decimal(1)) * _WORD_SCALES["hundred"]
+        elif token in _WORD_SCALES:
+            total += (current or Decimal(1)) * _WORD_SCALES[token]
+            current = Decimal(0)
+            seen_a_number = True
+        else:
+            # An unknown word inside the phrase means this is prose, not an
+            # amount, and reading a number out of it would be invention.
+            return None
+
+    if not seen_a_number:
+        return None
+    return (total + current).normalize()
+
+
 def normalize_amount(raw: str | int | float | None) -> str | None:
     """Canonical string form used for storage and exact comparison."""
     value = parse_amount(raw)

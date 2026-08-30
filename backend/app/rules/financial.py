@@ -17,6 +17,13 @@ from app.rules.registry import RuleContext, RuleOutcome, rule
 from app.schemas.discrepancy import CandidateDiscrepancy
 from app.utils.numbers import parse_amount
 
+# Canonical fields that hold money, and so are candidates for what an amount
+# written out in words is restating.
+AMOUNT_FIELDS: frozenset[str] = frozenset(
+    {"loan_amount", "income", "net_salary", "property_value", "agreement_value",
+     "closing_balance", "deductions", "tax_amount_paid"}
+)
+
 
 def _amount_agreement(
     context: RuleContext,
@@ -108,6 +115,119 @@ def loan_amount_match(context: RuleContext) -> Iterable[RuleOutcome]:
         canonical_field="loan_amount",
         finding_type="LOAN_AMOUNT_MISMATCH",
     )
+
+
+@rule("financial", "amount_in_words_match")
+def amount_in_words_match(context: RuleContext) -> Iterable[RuleOutcome]:
+    """The figure and the words on the same page must agree.
+
+    Financial and legal documents state an amount twice — "Rs. 5,00,000/-
+    (Rupees Five Lakh only)" — precisely so that a single altered digit does
+    not go unnoticed. Reading only the numerals throws that away, and it is
+    the numerals that are easy to change.
+
+    Where they differ, the words prevail: that is the settled convention in
+    Indian contract law and in the Negotiable Instruments Act, and the finding
+    says so rather than leaving a reviewer to guess which side to believe.
+
+    The words are compared against every amount the same document states, and
+    matching any one of them is a pass. Tying each document type to a single
+    field would be more precise and far more brittle, since which figure the
+    words restate varies by document and by draftsman.
+    """
+    from app.utils.numbers import parse_amount, parse_amount_words
+
+    rule_id = "financial.amount_in_words_match"
+    severity = context.config.severity("financial", "amount_in_words_match", Severity.HIGH)
+    spelled = [o for o in context.values_for("amount_in_words") if o.value]
+
+    if not spelled:
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="financial",
+            result=RuleResult.NOT_APPLICABLE,
+            reason="no document stated an amount in words",
+        )
+        return
+
+    for words in spelled:
+        written = parse_amount_words(words.value)
+        if written is None:
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="financial",
+                result=RuleResult.REVIEW,
+                field="amount_in_words",
+                severity=severity,
+                reason=(
+                    f"{words.document_name} states an amount in words that could not "
+                    f"be read as a number: {words.value!r}"
+                ),
+                evidence=[words.as_evidence()],
+            )
+            continue
+
+        figures = [
+            o for o in context.observations
+            if o.document_id == words.document_id
+            and o.canonical_field in AMOUNT_FIELDS
+            and parse_amount(o.value) is not None
+        ]
+        if not figures:
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="financial",
+                result=RuleResult.NOT_APPLICABLE,
+                field="amount_in_words",
+                reason=f"{words.document_name} states words but no figure to check them against",
+                evidence=[words.as_evidence()],
+            )
+            continue
+
+        if any(parse_amount(o.value) == written for o in figures):
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="financial",
+                result=RuleResult.PASS,
+                field="amount_in_words",
+                reason=(
+                    f"{words.document_name}: the amount in words agrees with the figure"
+                ),
+                evidence=[words.as_evidence()],
+            )
+            continue
+
+        # Report against the nearest figure, which is the one the words were
+        # almost certainly meant to restate.
+        closest = min(figures, key=lambda o: abs(parse_amount(o.value) - written))
+        summary = (
+            f"{words.document_name} states {closest.value} in figures but "
+            f"{words.value!r} in words. Where a document disagrees with itself, "
+            "the amount in words is the one that governs."
+        )
+        evidence = [words.as_evidence(), closest.as_evidence()]
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="financial",
+            result=RuleResult.FAIL,
+            field="amount_in_words",
+            severity=severity,
+            reason=summary,
+            evidence=evidence,
+            candidate=CandidateDiscrepancy(
+                type="AMOUNT_WORDS_FIGURE_MISMATCH",
+                field=closest.canonical_field,
+                severity=severity,
+                rule_id=rule_id,
+                origin="RULE_ENGINE",
+                comparison_method="amount",
+                summary=summary,
+                values=[closest.value, words.value],
+                evidence=evidence,
+                needs_reasoning=False,
+                deterministic=True,
+            ),
+        )
 
 
 @rule("financial", "income_match")

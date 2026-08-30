@@ -32,9 +32,11 @@ Rules:
 6. If a field is absent, use NOT_FOUND.
 7. Preserve leading zeros in identifiers.
 8. Do not alter names.
-9. Do not silently correct dates.
-10. Do not combine values from different documents.
-11. Every important value must have page/source evidence.
-12. Return JSON only.
+9. A field holds one value. Do not merge a neighbouring line into it: a name field holds the name, not the address printed beneath it.
+10. Where a field is described, the description says where the value stops. Follow it.
+11. Do not silently correct dates.
+12. Do not combine values from different documents.
+13. Every important value must have page/source evidence.
+14. Return JSON only.
 
 Accuracy is more important than completeness.

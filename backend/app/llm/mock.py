@@ -97,6 +97,13 @@ _FIELD_LABELS: dict[str, tuple[str, ...]] = {
 # Documents present label/value pairs three ways: with a colon in prose, with
 # a dash, and as two cells of a table, which the parsers render as "a | b".
 _LINE = re.compile(r"^\s*([A-Za-z][A-Za-z /.'-]{1,40}?)\s*[:|\-]\s*(.+?)\s*$", re.MULTILINE)
+# The stub reads its instructions out of the real prompt, so it is coupled to
+# how the extractor renders its field list. A field may be listed bare or
+# followed by a definition of where its value stops ("- party_two: the name of
+# the second party only, ..."), and both forms must be recognised or the stub
+# silently extracts less than it was asked for. Exported so the contract can be
+# tested against the renderer rather than restated in a second place.
+REQUESTED_FIELD = re.compile(r"^-\s*([a-z_]+)\s*(?::.*)?$", re.MULTILINE)
 
 
 class MockLLMClient(BaseLLMClient):
@@ -239,7 +246,7 @@ class MockLLMClient(BaseLLMClient):
 
     @staticmethod
     def _extract(text: str) -> dict[str, Any]:
-        requested = re.findall(r"^-\s*([a-z_]+)\s*$", text, re.MULTILINE)
+        requested = REQUESTED_FIELD.findall(text)
         document_body = text.split("DOCUMENT TEXT:", 1)[-1]
         pairs = {
             label.strip().lower().replace(".", ""): (value.strip(), _page_of(document_body, value))

@@ -195,8 +195,46 @@ CANONICAL_MAP: dict[str, str] = {
 }
 
 
+# Where a field name alone does not say where the value stops. A letter prints
+# the addressee as a name on one line and their address on the next, and asking
+# for "party_two" against that block is an underspecified question — the model
+# returned both, which was a fair reading of what was asked.
+#
+# Only fields with a demonstrated ambiguity are described. A description is a
+# change to what is being asked for, so each one costs a re-measurement; adding
+# them speculatively to fields that already extract cleanly risks moving
+# something that works.
+FIELD_DESCRIPTIONS: dict[str, str] = {
+    "party_one": (
+        "the name of the first party only — a person or an organisation, "
+        "without their address, title or role in the agreement"
+    ),
+    "party_two": (
+        "the name of the second party only — for a sanction or offer letter "
+        "this is the addressee, and it is their name alone, not the address "
+        "block printed beneath it"
+    ),
+    "name": "the person's name only, without any address, title or salutation",
+    "applicant_name": "the applicant's name only, without any address or title",
+    "account_holder_name": "the account holder's name only, without the address",
+    "employee_name": "the employee's name only, without a designation or code",
+    "owner_name": "the owner's name only, without the property address",
+    "address": "the full postal address, without the name of the person it belongs to",
+    "permanent_address": "the full permanent address, without the name it belongs to",
+}
+
+
 def required_fields_for(document_type: str) -> list[str]:
     return REQUIRED_FIELDS.get(document_type, GENERIC_FIELDS)
+
+
+def describe_fields(names: list[str]) -> str:
+    """The field list as the prompt sees it, with definitions where they exist."""
+    lines = []
+    for name in names:
+        description = FIELD_DESCRIPTIONS.get(name)
+        lines.append(f"- {name}: {description}" if description else f"- {name}")
+    return "\n".join(lines)
 
 
 def canonical_field_for(extracted_name: str) -> str | None:
@@ -242,7 +280,7 @@ class DocumentExtractorAgent(BaseAgent):
             self.system_prompt,
             {
                 "document_type": document_type,
-                "required_fields": "\n".join(f"- {name}" for name in required),
+                "required_fields": describe_fields(required),
             },
         )
         prompt = (

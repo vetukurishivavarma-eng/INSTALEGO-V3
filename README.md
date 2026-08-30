@@ -234,25 +234,34 @@ that says "Aadhaar" lets the classifier be right for the wrong reason.
 `minimax/minimax-m3:free`, 39 variants (three layouts against thirteen
 conditions), 156 fields:
 
-| Metric | As measured | After fixing finding 1 |
+| Metric | First run | After both fixes |
 |---|---|---|
-| Field accuracy | 0.85 | 0.86 |
+| Field accuracy | 0.85 | 0.85 |
 | Wrong (a false value returned) | 0.019 | 0.013 |
-| **Silently wrong** (false and unflagged) | **0.013** | **0.006** |
-| Classification accuracy | 0.82 | 0.82 |
+| **Silently wrong** (false and unflagged) | **0.013** | **0.000** |
+| Classification accuracy | 0.82 | 0.80 |
 
-The second column comes from `--rescore`, which re-applies the scoring rules to
-the values the run already recorded. A fix to normalisation or to how a field
-is compared costs no quota to evaluate.
+Findings 1 and 3 were re-scored with `--rescore`, which re-applies the scoring
+rules to the values the run already recorded — a fix to normalisation costs no
+quota to evaluate. Finding 2 changed the extractor prompt, so the sanction
+letter was re-run against the model.
+
+Read the two middle rows and ignore the outer ones. Field and classification
+accuracy moved by less than the model's own run-to-run variance (see finding 2)
+and neither movement is attributable to the fixes.
 
 Accuracy by condition, worst first:
 
 | Condition | Accuracy | Wrong | Silent | Flagged |
 |---|---|---|---|---|
 | `worst_case` | 0.42 | 1 | 0 | 3/3 |
-| `skew_severe`, `blur_severe`, `stamped`, `phone_photo`, `bad_photocopy`, `upside_down`, `tiny` | 0.83 | 0 | 0 | varies |
-| `rotated_90` | 0.92 | 1 | 1 | 0/3 |
-| `clean`, `very_faded`, `low_resolution`, `dark` | 1.00 | 0 | 0 | — |
+| `clean`, `skew_severe`, `blur_severe`, `very_faded`, `stamped`, `phone_photo`, `tiny`, `dark` | 0.83 | 0 | 0 | varies |
+| `upside_down` | 0.92 | 1 | 0 | 1/3 |
+| `low_resolution`, `bad_photocopy`, `rotated_90` | 1.00 | 0 | 0 | varies |
+
+`clean` sitting alongside `skew_severe` and `dark`, and `bad_photocopy` and
+`rotated_90` scoring a clean 1.00, is the whole finding in one table: the
+ordering is noise, because the thing that moves the number is not the image.
 
 The image degradations barely matter. A card, a payslip and a letter all
 survive twelve degrees of skew, severe defocus, a stamp across the values, a
@@ -261,7 +270,8 @@ anyway. Extraction accuracy tracks **layout**, not image quality: the identity
 card scores 0.94 and the payslip 0.98, while the prose sanction letter scores
 0.51 — and it scores 0.51 in good conditions too.
 
-Three findings came out of it, in order of what they cost:
+Four findings came out of it, in order of what they cost. Two are fixed, and
+the sweep is what verified the fixes:
 
 **1. An amount phrased as a sanction letter phrases it was silently
 uncomparable. Fixed.** The letter states `Rs. 5,00,000/- (Rupees Five Lakh
@@ -281,16 +291,40 @@ alone, and strips stacked end markers rather than one. Regression tests sit in
 the words prevail in law; nothing here reads number words, and a rule for that
 disagreement would be a separate piece of work.
 
-**2. Classification of the prose letter is unstable, and it changes which
-fields are even requested.** The sanction letter is read as `AGREEMENT` when
-clean and as `LOAN_APPLICATION` under six of the thirteen conditions. The
-extractor asks for a different field list per type, so `party_two` and
-`agreement_date` are never requested and score as permanently missing — which
-is why that document sits at 0.51. It also means that under `bank_b`, whose
-`required_documents` includes `LOAN_APPLICATION`, a sanction letter can satisfy
-the requirement for an application form the applicant never submitted.
+**2. Classification of the prose letter is not stable between runs, and the
+type decides which fields are even requested.** Still open.
 
-**3. Two image-quality checks do not fire.** `dark` (a page at a third of its
+The sanction letter comes back as `AGREEMENT` or as `LOAN_APPLICATION`
+depending on the run. Re-running the same thirteen fixtures with an *unchanged*
+classifier prompt flipped six of them, `clean` among them — so this is
+run-to-run nondeterminism, not an effect of degradation, and `LLM_TEMPERATURE`
+is already `0.0`. The extractor asks for a different field list per type, so
+`party_two` and `agreement_date` are requested on one run and not the next,
+which is why that document sits near 0.5 and why its score moves without
+anything changing.
+
+The consequence is not confined to a metric. Under `bank_b`, whose
+`required_documents` includes `LOAN_APPLICATION`, a sanction letter classified
+that way satisfies the requirement for an application form the applicant never
+submitted — on some runs and not others.
+
+Worth noting for anyone reading the first table: this variance is larger than
+the difference between the two columns, which is why those rows should not be
+read as a result.
+
+**3. A name field swallowed the line beneath it. Fixed.** Asked for
+`party_two`, the extractor returned `Ravi Kumar, 12, M.G. Road, Bengaluru -
+560001` — the whole addressee block. The prompt passed bare field names, so
+the question had no stated boundary and that was a fair answer to it.
+`FIELD_DESCRIPTIONS` in `app/agents/document_extractor.py` now carries a
+one-line definition for the fields with a demonstrated ambiguity, rendered into
+the prompt beside the name, and the prompt states the general rule. Descriptions
+are added only where a boundary problem has actually been observed: each one
+changes the question being asked, so each costs a re-measurement, and attaching
+them speculatively to fields that already extract cleanly risks moving
+something that works.
+
+**4. Two image-quality checks do not fire.** `dark` (a page at a third of its
 brightness) is not flagged, because a document is mostly white paper and the
 mean brightness stays above `DARK_MEAN_THRESHOLD` — the check measures the
 sheet rather than the ink. And Laplacian variance counts noise as detail, so
@@ -459,3 +493,6 @@ validated on extension, size and magic bytes.
   is the case where this shows.
 - **Two image-quality checks do not fire**: an underexposed page and a noisy
   one both pass. Recorded as strict xfails.
+- **Classification is not reproducible run to run**, and it selects the field
+  list, so what gets extracted from a borderline document varies between
+  identical runs. See finding 2.

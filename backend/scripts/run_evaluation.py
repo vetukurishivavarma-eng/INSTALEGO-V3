@@ -64,11 +64,38 @@ def load_existing(path: Path) -> dict[str, Any]:
         return {}
 
 
+def prompt_versions() -> dict[str, str]:
+    """The exact prompts this run was measured against.
+
+    Without this a published number cannot be tied to the system that produced
+    it. These results were quoted in the README for a day after both prompts
+    had been rewritten underneath them, and only a diff of the prompt hashes
+    showed it -- so the hashes are recorded here now.
+    """
+    from app.agents.base_agent import prompt_version
+
+    names = ("classifier", "extractor", "profile_builder", "discrepancy_reasoner",
+             "evidence_verifier", "report_mapper", "qa_agent", "encumbrance_reader")
+    versions = {}
+    for name in names:
+        try:
+            versions[name] = prompt_version(name)
+        except FileNotFoundError:
+            continue
+    return versions
+
+
 def write_results(path: Path, cases: dict[str, Any], model: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    from app.config import settings
+    from app.rules import load_rule_config
+
     payload = {
         "model": model,
         "generated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        "analysis_version": settings.ANALYSIS_VERSION,
+        "rules_version": load_rule_config(settings.DEFAULT_BANK_ID).version,
+        "prompt_versions": prompt_versions(),
         "cases": cases,
     }
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")

@@ -359,6 +359,123 @@ def _render_bank_statement() -> Image.Image:
     return image
 
 
+def _render_sale_deed() -> Image.Image:
+    """A registered conveyance: dense justified prose with the parties named
+    in the recitals, and the schedule of property in a block at the foot.
+
+    Nothing on this page is a labelled field. The seller and the buyer -- the
+    two values the whole chain of title is built from -- appear in the middle
+    of a sentence, which is a harder read than any degradation applied to a
+    card.
+    """
+    image, draw = _page(1500, 2100)
+    serif = font_of(27, serif=True)
+    small = font_of(22, serif=True)
+
+    draw.text((60, 60), "DEED OF ABSOLUTE SALE", font=font_of(38, bold=True, serif=True),
+              fill=INK)
+    draw.line([60, 112, 1440, 112], fill=INK, width=2)
+    draw.text((60, 132), "Registered as Document No. BLR-4-2024-1187 in Book I",
+              font=small, fill=FAINT)
+
+    y = 200
+    paragraphs = [
+        "THIS DEED OF ABSOLUTE SALE is made and executed on this the Twenty First "
+        "day of June, Two Thousand and Twenty Four.",
+        "BETWEEN Sri Suresh Kumar, son of Late Ramachandra Kumar, aged about 58 "
+        "years, residing at No. 22, Vinayaka Layout, Bengaluru 560061, hereinafter "
+        "called the VENDOR of the ONE PART,",
+        "AND Sri Ravi Kumar, son of Sri Suresh Kumar, aged about 28 years, residing "
+        "at 12, M.G. Road, Bengaluru 560001, hereinafter called the PURCHASER of the "
+        "OTHER PART.",
+        "WHEREAS the Vendor is the absolute owner in possession and enjoyment of the "
+        "property more fully described in the Schedule hereunder, having acquired "
+        "the same under a registered Sale Deed dated 2nd September 2019.",
+        "AND WHEREAS the Vendor has agreed to sell and the Purchaser has agreed to "
+        "purchase the said property for a total consideration of Rs. 42,00,000/- "
+        "(Rupees Forty Two Lakh only), the receipt whereof the Vendor hereby "
+        "acknowledges.",
+        "NOW THIS DEED WITNESSETH that in consideration of the said sum the Vendor "
+        "doth hereby convey, transfer and assure unto the Purchaser the said "
+        "property free from all encumbrances.",
+    ]
+    for text in paragraphs:
+        y = _paragraph(draw, 60, y, text, serif, 1380, 40) + 24
+
+    y += 20
+    draw.text((60, y), "SCHEDULE OF PROPERTY", font=font_of(28, bold=True, serif=True),
+              fill=INK)
+    y += 50
+    y = _paragraph(
+        draw, 60, y,
+        "All that piece and parcel of land bearing Survey Number 42/1B, Site No. 14, "
+        "Ward 8, Kengeri Hobli, Bengaluru South Taluk, measuring 2400 square feet, "
+        "bounded on the East by Site No. 13 and on the West by a 30 foot road.",
+        serif, 1380, 40)
+
+    y += 60
+    draw.text((60, y), "VENDOR", font=small, fill=FAINT)
+    draw.text((900, y), "PURCHASER", font=small, fill=FAINT)
+    draw.line([60, y + 60, 460, y + 60], fill=INK, width=2)
+    draw.line([900, y + 60, 1300, y + 60], fill=INK, width=2)
+    return image
+
+
+def _render_encumbrance_certificate() -> Image.Image:
+    """The registrar's ledger: a ruled table whose rows are the whole content.
+
+    The chain lives in the Executant and Claimant columns, read across and then
+    down. A mortgage sits in the same table as a sale and must not be mistaken
+    for one, which makes the Nature column carry as much weight as the names.
+    """
+    image, draw = _page(1500, 1500)
+    draw.text((60, 55), "ENCUMBRANCE CERTIFICATE", font=font_of(34, bold=True), fill=INK)
+    draw.text((60, 102), "OFFICE OF THE SUB-REGISTRAR, KENGERI, BENGALURU URBAN",
+              font=font_of(21), fill=FAINT)
+    draw.line([60, 138, 1440, 138], fill=INK, width=2)
+
+    label = font_of(21)
+    body = font_of(23)
+    y = 165
+    for name, value in (
+        ("Survey Number", "42/1B"),
+        ("Property", "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060"),
+        ("Period", "01/01/2013 to 01/07/2026"),
+    ):
+        draw.text((60, y), name, font=label, fill=FAINT)
+        draw.text((320, y), value, font=body, fill=INK)
+        y += 36
+
+    y += 24
+    columns = (75, 150, 330, 620, 940, 1250)
+    headers = ("Sl.", "Date", "Nature", "Executant", "Claimant", "Doc. No.")
+    draw.rectangle([60, y, 1440, y + 46], fill=(236, 238, 242))
+    for text, x in zip(headers, columns, strict=True):
+        draw.text((x, y + 12), text, font=font_of(22, bold=True), fill=INK)
+    y += 46
+
+    rows = [
+        ("1", "14/03/2015", "Sale Deed", "Anil Sharma", "Meera Reddy", "1187/2015"),
+        ("2", "08/01/2017", "Simple Mortgage", "Meera Reddy", "Canara Bank", "0221/2017"),
+        ("3", "22/11/2018", "Release of Mortgage", "Canara Bank", "Meera Reddy", "3390/2018"),
+        ("4", "02/09/2019", "Sale Deed", "Meera Reddy", "Suresh Kumar", "4471/2019"),
+        ("5", "21/06/2024", "Sale Deed", "Suresh Kumar", "Ravi Kumar", "1187/2024"),
+    ]
+    for cells in rows:
+        draw.rectangle([60, y, 1440, y + 44], outline=RULE, width=1)
+        for text, x in zip(cells, columns, strict=True):
+            draw.text((x, y + 10), text, font=font_of(21), fill=INK)
+        y += 44
+
+    y += 40
+    _paragraph(draw, 60, y,
+               "Certified that the above 5 entries are the transactions registered in "
+               "respect of the said property for the period stated. No other "
+               "encumbrance subsists as on the date of this certificate.",
+               font_of(21), 1380, 32)
+    return image
+
+
 DOCUMENTS: dict[str, HardDocument] = {
     document.doc_id: document
     for document in [
@@ -415,6 +532,35 @@ DOCUMENTS: dict[str, HardDocument] = {
             decoys={"loan_amount": "10610 (instalment) or 5900 (processing fee)"},
         ),
         HardDocument(
+            doc_id="deed",
+            description="registered conveyance: the parties named mid-sentence in prose",
+            expected_type=("SALE_DEED", "PROPERTY_DOCUMENT"),
+            render=_render_sale_deed,
+            truth={
+                "seller_name": "Suresh Kumar",
+                "buyer_name": "Ravi Kumar",
+                "survey_number": "42/1B",
+                "property_value": "4200000",
+            },
+            decoys={
+                "seller_name": "Ramachandra Kumar (the vendor's late father)",
+                "survey_number": "14 (the site number) or 8 (the ward)",
+            },
+        ),
+        HardDocument(
+            doc_id="encumbrance",
+            description="registrar's ledger: a ruled table whose rows are the content",
+            expected_type=("ENCUMBRANCE_CERTIFICATE", "PROPERTY_DOCUMENT"),
+            render=_render_encumbrance_certificate,
+            truth={
+                "survey_number": "42/1B",
+                "property_address": "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060",
+                "ec_period_from": "01/01/2013",
+                "ec_period_to": "01/07/2026",
+            },
+            decoys={"ec_period_from": "14/03/2015 (the first transaction)"},
+        ),
+        HardDocument(
             doc_id="statement",
             description="letterhead plus transaction table: the account number among four codes",
             expected_type=("BANK_STATEMENT", "FINANCIAL_STATEMENT"),
@@ -433,7 +579,7 @@ DOCUMENTS: dict[str, HardDocument] = {
 
 # One representative of each layout problem, for a run on a rate-limited
 # endpoint where the whole matrix will not fit in a day's quota.
-CORE_DOCUMENTS = ("aadhaar", "payslip", "sanction")
+CORE_DOCUMENTS = ("aadhaar", "payslip", "sanction", "deed")
 
 _CACHE: dict[str, Image.Image] = {}
 

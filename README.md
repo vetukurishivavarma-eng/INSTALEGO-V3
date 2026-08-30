@@ -127,7 +127,7 @@ case to `var/evaluation-live.json` as it finishes and takes `--resume`, because
 a hundred throttled calls take a quarter of an hour and an interrupted run
 should not lose the cases that already succeeded.
 
-Last measured run, `minimax/minimax-m3:free`, 9 cases in 7.3 minutes:
+Last measured run, `minimax/minimax-m3:free`, 9 of 9 cases passing:
 
 | Metric | Result |
 |---|---|
@@ -136,6 +136,13 @@ Last measured run, `minimax/minimax-m3:free`, 9 cases in 7.3 minutes:
 | False-positive rate | 0.00 |
 | Severity accuracy | 1.00 |
 | Evidence accuracy | 1.00 |
+| Status accuracy | 1.00 |
+
+The run records the prompt hashes, rules version and model it was measured
+against, in `var/evaluation-live.json`. That is not bookkeeping: these numbers
+were quoted here for a day after both prompts had been rewritten underneath
+them, and nothing in the file said so. A published measurement that cannot be
+tied to the system that produced it is a claim, not a result.
 
 Read that with the fixtures in mind. These documents are generated with clean
 text layers and unambiguous `Label: value` lines, so they measure whether the
@@ -640,12 +647,12 @@ break the chain of every property that ever carried a loan.
   storage layer leave room to add pgvector or Qdrant without restructuring.
 - **Single tenant.** `Principal.tenant` exists and is checked, but nothing
   populates it yet.
-- **Land documents are not in the degradation sweep.** The rules have been run
-  against a real model on clean synthetic documents — six classified correctly,
-  a broken chain found, a certificate's table read row by row — but what a
-  vision model makes of an *actual* registered deed, which is dense legal prose,
-  often bilingual and often a photocopy of a photocopy, is unmeasured. The
-  sweep covers three identity and income layouts and no land ones.
+- **The land layouts are in the sweep but have not been swept.** A registered
+  deed and an encumbrance certificate are now part of the degradation matrix,
+  and `deed` is in the affordable core set — but the run itself needs a day's
+  free-tier quota and has not been made. What a vision model makes of an
+  *actual* registered deed, which is dense legal prose, often bilingual and
+  often a photocopy of a photocopy, remains unmeasured.
 - **Report QA regenerates once.** A report failing QA twice is stored as
   `QA_FAILED` rather than released.
 - **Classification is not reproducible run to run.** Three things now blunt

@@ -1,0 +1,11 @@
+# Normalise line endings in the repository, so a checkout on Windows and one on
+# Linux produce the same blobs and diffs stay free of whole-file churn.
+* text=auto eol=lf
+
+# Binary and generated files git should not try to diff or normalise.
+*.png binary
+*.jpg binary
+*.pdf binary
+*.docx binary
+*.xlsx binary
+frontend/package-lock.json linguist-generated=true -diff

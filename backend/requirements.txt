@@ -1,0 +1,36 @@
+# --- web ---
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# --- persistence ---
+SQLAlchemy==2.0.36
+alembic==1.14.0
+psycopg[binary]==3.2.3
+
+# --- async jobs ---
+arq==0.26.3
+redis==5.2.1
+
+# --- document parsing ---
+PyMuPDF==1.25.1
+python-docx==1.1.2
+openpyxl==3.1.5
+Pillow==11.0.0
+opencv-python-headless==4.10.0.84
+
+# --- llm / http ---
+httpx==0.28.1
+
+# --- reports ---
+Jinja2==3.1.5
+reportlab==4.2.5
+
+# --- config / util ---
+PyYAML==6.0.2
+python-dateutil==2.9.0.post0
+
+# --- storage ---
+boto3==1.35.92

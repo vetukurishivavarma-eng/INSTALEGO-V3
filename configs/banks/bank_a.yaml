@@ -1,0 +1,31 @@
+# Bank A: retail lender, strict on identity, tolerant on income variation.
+#
+# Only the differences from configs/default_rules.yaml appear here.
+
+version: bank-a-v1
+bank_id: bank_a
+bank_name: Bank A
+
+required_documents:
+  - IDENTITY_PROOF
+  - ADDRESS_PROOF
+  - INCOME_PROOF
+  - BANK_STATEMENT
+
+identity:
+  address_match:
+    severity: MEDIUM
+  driving_license_match:
+    severity: MEDIUM
+
+financial:
+  income_match:
+    tolerance_pct: 10.0
+  loan_amount_match:
+    severity: HIGH
+
+status_policy:
+  high_risk_on_verified_high: true
+
+report:
+  template: bank_a

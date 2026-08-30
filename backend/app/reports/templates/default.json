@@ -1,0 +1,143 @@
+{
+  "template_id": "default",
+  "title": "Document Verification Report",
+  "subtitle": "Decision support for manual review. Not an automated decision.",
+  "disclaimer": "This report is generated from the documents supplied with this case. Findings identify inconsistencies between documents; they are not determinations of fraud and require verification by a reviewer.",
+  "sections": [
+    {
+      "key": "case_summary",
+      "title": "Case Summary",
+      "type": "object",
+      "mapping": "builtin",
+      "fields": {
+        "applicant_name": "Applicant",
+        "case_id": "Case reference",
+        "bank_id": "Bank",
+        "documents_received": "Documents received",
+        "documents_expected": "Documents required",
+        "overall_status": "Overall status",
+        "overall_confidence": "Extraction confidence",
+        "manual_review_required": "Manual review required",
+        "generated_at": "Generated"
+      }
+    },
+    {
+      "key": "applicant_profile",
+      "title": "Applicant Profile",
+      "type": "profile",
+      "mapping": "builtin",
+      "include_fields": [
+        "name",
+        "date_of_birth",
+        "gender",
+        "father_name",
+        "pan",
+        "aadhaar",
+        "passport",
+        "driving_license",
+        "phone",
+        "email",
+        "current_address",
+        "permanent_address",
+        "employer",
+        "designation",
+        "income",
+        "bank_account",
+        "loan_amount"
+      ]
+    },
+    {
+      "key": "documents",
+      "title": "Documents Received",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {"key": "filename", "title": "Document"},
+        {"key": "document_type", "title": "Type"},
+        {"key": "pages", "title": "Pages"},
+        {"key": "quality_status", "title": "Quality"},
+        {"key": "status", "title": "Processing"}
+      ]
+    },
+    {
+      "key": "discrepancies",
+      "title": "Discrepancies",
+      "type": "findings",
+      "mapping": "builtin",
+      "columns": [
+        {"key": "id", "title": "ID"},
+        {"key": "severity", "title": "Severity"},
+        {"key": "status", "title": "Status"},
+        {"key": "field", "title": "Field"},
+        {"key": "document_1", "title": "Document A"},
+        {"key": "value_1", "title": "Value A"},
+        {"key": "document_2", "title": "Document B"},
+        {"key": "value_2", "title": "Value B"},
+        {"key": "confidence", "title": "Confidence"},
+        {"key": "explanation", "title": "Explanation"},
+        {"key": "recommended_action", "title": "Recommended action"}
+      ]
+    },
+    {
+      "key": "missing_documents",
+      "title": "Missing Documents",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {"key": "document_type", "title": "Required document"},
+        {"key": "severity", "title": "Severity"},
+        {"key": "reason", "title": "Reason"}
+      ]
+    },
+    {
+      "key": "document_quality",
+      "title": "Document Quality Observations",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {"key": "filename", "title": "Document"},
+        {"key": "quality_status", "title": "Status"},
+        {"key": "quality_flags", "title": "Observations"},
+        {"key": "quality_notes", "title": "Notes"}
+      ]
+    },
+    {
+      "key": "validation_results",
+      "title": "Validation Results",
+      "type": "table",
+      "mapping": "builtin",
+      "include_results": ["FAIL", "REVIEW", "PASS"],
+      "columns": [
+        {"key": "rule_id", "title": "Rule"},
+        {"key": "result", "title": "Result"},
+        {"key": "field", "title": "Field"},
+        {"key": "reason", "title": "Detail"}
+      ]
+    },
+    {
+      "key": "final_assessment",
+      "title": "Final Assessment",
+      "type": "object",
+      "mapping": "builtin",
+      "fields": {
+        "status": "Status",
+        "key_findings": "Key findings",
+        "recommended_actions": "Recommended actions",
+        "manual_review_required": "Manual review required"
+      }
+    },
+    {
+      "key": "provenance",
+      "title": "Analysis Provenance",
+      "type": "object",
+      "mapping": "builtin",
+      "fields": {
+        "analysis_version": "Analysis version",
+        "model": "Model",
+        "prompt_version": "Prompt version",
+        "rules_version": "Rules version",
+        "generated_at": "Generated at"
+      }
+    }
+  ]
+}

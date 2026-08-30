@@ -1,0 +1,156 @@
+# Default rule configuration.
+#
+# Every rule the engine can run is declared here, with the severity a failure
+# carries. Bank files under configs/banks/ deep-merge over this, so a bank only
+# states what it does differently.
+#
+# Severity is configuration, not code: the same DOB mismatch may be HIGH at one
+# lender and MEDIUM at another, and neither should require a deployment.
+
+version: default-v1
+
+identity:
+  name_match:
+    enabled: true
+    severity: HIGH
+    # Similar-but-not-equivalent names go to the reasoning agent instead of
+    # being asserted as a mismatch. This is the main false-positive control.
+    escalate_undetermined: true
+  dob_match:
+    enabled: true
+    severity: HIGH
+    escalate_undetermined: true
+  pan_match:
+    enabled: true
+    severity: HIGH
+  aadhaar_match:
+    enabled: true
+    severity: HIGH
+  passport_match:
+    enabled: true
+    severity: HIGH
+  driving_license_match:
+    enabled: true
+    severity: MEDIUM
+  father_name_match:
+    enabled: true
+    severity: MEDIUM
+    escalate_undetermined: true
+  # Structural validity of an identifier. A malformed value is a data-quality
+  # finding, never an accusation: OCR misreads look exactly like this.
+  pan_format:
+    enabled: true
+    severity: MEDIUM
+  aadhaar_checksum:
+    enabled: true
+    severity: MEDIUM
+  address_match:
+    enabled: true
+    severity: MEDIUM
+    escalate_undetermined: true
+  phone_match:
+    enabled: true
+    severity: LOW
+  email_match:
+    enabled: true
+    severity: LOW
+
+dates:
+  document_expiry:
+    enabled: true
+    severity: HIGH
+    # Types where an expired document blocks the file rather than annoying it.
+    critical_types: [PASSPORT, DRIVING_LICENSE, IDENTITY_PROOF, AADHAAR]
+    non_critical_severity: MEDIUM
+  dob_plausibility:
+    enabled: true
+    severity: MEDIUM
+    min_age: 18
+    max_age: 100
+  date_ordering:
+    enabled: true
+    severity: MEDIUM
+  document_date_future:
+    enabled: true
+    severity: MEDIUM
+
+financial:
+  loan_amount_match:
+    enabled: true
+    severity: HIGH
+    tolerance_pct: 0.0
+  income_match:
+    enabled: true
+    severity: MEDIUM
+    # Salary slips and ITRs legitimately differ by rounding and period, so a
+    # small gap is not a finding.
+    tolerance_pct: 5.0
+  salary_arithmetic:
+    enabled: true
+    severity: MEDIUM
+    tolerance_abs: 1.0
+  bank_account_match:
+    enabled: true
+    severity: MEDIUM
+
+documents:
+  required_documents:
+    enabled: true
+    severity: HIGH
+  duplicate_document:
+    enabled: true
+    severity: LOW
+  unreadable_document:
+    enabled: true
+    severity: MEDIUM
+  low_ocr_confidence:
+    enabled: true
+    severity: LOW
+  unclassified_document:
+    enabled: true
+    severity: MEDIUM
+
+# What the bank insists on receiving. Checked deterministically against the
+# classified types, never by a model.
+required_documents:
+  - IDENTITY_PROOF
+  - ADDRESS_PROOF
+  - INCOME_PROOF
+  - BANK_STATEMENT
+
+# A requirement is satisfied by any of the concrete types listed against it, so
+# a PAN card can satisfy IDENTITY_PROOF without the requirement naming PAN.
+document_type_groups:
+  IDENTITY_PROOF: [IDENTITY_PROOF, AADHAAR, PAN, PASSPORT, DRIVING_LICENSE]
+  ADDRESS_PROOF: [ADDRESS_PROOF, AADHAAR, PASSPORT, DRIVING_LICENSE]
+  INCOME_PROOF: [SALARY_SLIP, ITR, EMPLOYMENT_PROOF, FINANCIAL_STATEMENT]
+  BANK_STATEMENT: [BANK_STATEMENT]
+  LOAN_APPLICATION: [LOAN_APPLICATION]
+  PROPERTY_DOCUMENT: [PROPERTY_DOCUMENT]
+
+comparison:
+  thresholds:
+    name_equal: 0.92
+    name_different: 0.70
+    address_equal: 0.90
+    address_different: 0.55
+    organisation_equal: 0.88
+    organisation_different: 0.60
+  # Escalate ambiguous pairs to the reasoning agent. Turning this off makes the
+  # system fully deterministic at the cost of leaving them for a human.
+  semantic_escalation: true
+
+# The final status is decided in Python from the findings, never by a model.
+status_policy:
+  high_risk_on_verified_high: true
+  review_required_on_high: true
+  review_required_on_medium: true
+  review_required_on_missing_documents: true
+  clear_requires_no_open_findings: true
+
+review:
+  # Findings a human must sign off before a case can leave REVIEW_REQUIRED.
+  manual_review_severities: [HIGH, MEDIUM]
+
+report:
+  template: default

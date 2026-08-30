@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+*.egg-info/
+
+# Local data: uploaded documents and the dev database never belong in git
+backend/var/
+backend/*.db
+*.sqlite3
+
+# Node
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Secrets and local configuration
+.env
+.env.local
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

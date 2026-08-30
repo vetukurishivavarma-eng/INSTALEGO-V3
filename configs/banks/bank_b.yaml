@@ -1,0 +1,38 @@
+# Bank B: secured lending, so property paperwork is mandatory and an address
+# mismatch is treated as seriously as an identity one.
+
+version: bank-b-v1
+bank_id: bank_b
+bank_name: Bank B
+
+required_documents:
+  - IDENTITY_PROOF
+  - ADDRESS_PROOF
+  - INCOME_PROOF
+  - BANK_STATEMENT
+  - PROPERTY_DOCUMENT
+  - LOAN_APPLICATION
+
+identity:
+  address_match:
+    severity: HIGH
+  phone_match:
+    severity: LOW
+
+financial:
+  income_match:
+    tolerance_pct: 2.0
+  loan_amount_match:
+    tolerance_pct: 0.0
+
+dates:
+  document_expiry:
+    critical_types: [PASSPORT, DRIVING_LICENSE, IDENTITY_PROOF, AADHAAR, PROPERTY_DOCUMENT]
+
+status_policy:
+  # Any HIGH finding stops the file here rather than only flagging it.
+  high_risk_on_verified_high: true
+  review_required_on_medium: true
+
+report:
+  template: bank_b

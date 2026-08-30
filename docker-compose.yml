@@ -1,0 +1,168 @@
+# Development stack.
+#
+#   docker compose up --build
+#
+# Brings up the frontend, API, worker, PostgreSQL, Redis and MinIO. The model
+# server is behind the `gpu` profile because it needs an NVIDIA GPU and a large
+# weight download, and everything else has to be usable without one:
+#
+#   docker compose --profile gpu up --build     # with the local model
+#
+# Without that profile, point LLM_BASE_URL at any OpenAI-compatible endpoint,
+# or set LLM_USE_MOCK=true to exercise the deterministic pipeline alone.
+
+name: legal-document-ai
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ldai
+      POSTGRES_PASSWORD: ldai
+      POSTGRES_DB: ldai
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ldai -d ldai"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    volumes:
+      - minio-data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"   # web console
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql+psycopg://ldai:ldai@postgres:5432/ldai
+      REDIS_URL: redis://redis:6379/0
+      TASK_QUEUE_BACKEND: arq
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: legal-documents
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      CONFIG_DIR: /app/configs
+      DEFAULT_BANK_ID: bank_a
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://model-server:8000/v1}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3-VL-8B-Instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed-for-local-vllm}
+      LLM_USE_MOCK: ${LLM_USE_MOCK:-false}
+    volumes:
+      # Rule and report configuration is mounted rather than baked in, so a
+      # bank's thresholds can be changed without rebuilding the image.
+      - ./configs:/app/configs:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_started
+    command: >
+      sh -c "alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+  worker:
+    build:
+      context: ./backend
+    environment:
+      ENVIRONMENT: development
+      LOG_LEVEL: INFO
+      DATABASE_URL: postgresql+psycopg://ldai:ldai@postgres:5432/ldai
+      REDIS_URL: redis://redis:6379/0
+      TASK_QUEUE_BACKEND: arq
+      STORAGE_BACKEND: s3
+      S3_ENDPOINT: http://minio:9000
+      S3_BUCKET: legal-documents
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      CONFIG_DIR: /app/configs
+      DEFAULT_BANK_ID: bank_a
+      LLM_BASE_URL: ${LLM_BASE_URL:-http://model-server:8000/v1}
+      LLM_MODEL: ${LLM_MODEL:-Qwen3-VL-8B-Instruct}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed-for-local-vllm}
+      LLM_USE_MOCK: ${LLM_USE_MOCK:-false}
+    volumes:
+      - ./configs:/app/configs:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_started
+    # The API runs migrations; the worker waits for the schema rather than
+    # racing it.
+    command: ["arq", "app.worker.WorkerSettings"]
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
+
+  model-server:
+    profiles: ["gpu"]
+    build:
+      context: ./model-server
+    environment:
+      MODEL_ID: ${MODEL_ID:-Qwen/Qwen3-VL-8B-Instruct}
+      MAX_MODEL_LEN: ${MAX_MODEL_LEN:-16384}
+      GPU_MEMORY_UTILIZATION: ${GPU_MEMORY_UTILIZATION:-0.90}
+      HUGGING_FACE_HUB_TOKEN: ${HUGGING_FACE_HUB_TOKEN:-}
+    volumes:
+      # Weights are cached on the host so a restart does not re-download them.
+      - huggingface-cache:/root/.cache/huggingface
+    ports:
+      - "8001:8000"
+    ipc: host
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+
+volumes:
+  postgres-data:
+  redis-data:
+  minio-data:
+  huggingface-cache:

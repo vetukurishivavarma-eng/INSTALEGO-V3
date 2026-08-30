@@ -1,0 +1,176 @@
+"""Vocabularies shared by the database models, the schemas and the pipeline.
+
+These strings appear in stored rows and in generated reports, so treat them as
+part of the system's contract: add members, do not rename them.
+"""
+
+from __future__ import annotations
+
+from enum import StrEnum
+
+
+class CaseStatus(StrEnum):
+    CREATED = "CREATED"
+    UPLOADING = "UPLOADING"
+    PROCESSING = "PROCESSING"
+    EXTRACTING = "EXTRACTING"
+    VALIDATING = "VALIDATING"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    COMPLETED = "COMPLETED"
+    FAILED = "FAILED"
+
+
+class DocumentStatus(StrEnum):
+    UPLOADED = "UPLOADED"
+    PARSING = "PARSING"
+    PARSED = "PARSED"
+    CLASSIFYING = "CLASSIFYING"
+    CLASSIFIED = "CLASSIFIED"
+    EXTRACTING = "EXTRACTING"
+    EXTRACTED = "EXTRACTED"
+    FAILED = "FAILED"
+
+
+class DocumentType(StrEnum):
+    IDENTITY_PROOF = "IDENTITY_PROOF"
+    ADDRESS_PROOF = "ADDRESS_PROOF"
+    PAN = "PAN"
+    AADHAAR = "AADHAAR"
+    PASSPORT = "PASSPORT"
+    DRIVING_LICENSE = "DRIVING_LICENSE"
+    BANK_STATEMENT = "BANK_STATEMENT"
+    SALARY_SLIP = "SALARY_SLIP"
+    ITR = "ITR"
+    EMPLOYMENT_PROOF = "EMPLOYMENT_PROOF"
+    PROPERTY_DOCUMENT = "PROPERTY_DOCUMENT"
+    LOAN_APPLICATION = "LOAN_APPLICATION"
+    AGREEMENT = "AGREEMENT"
+    LEGAL_DOCUMENT = "LEGAL_DOCUMENT"
+    FINANCIAL_STATEMENT = "FINANCIAL_STATEMENT"
+    TAX_DOCUMENT = "TAX_DOCUMENT"
+    OTHER = "OTHER"
+    UNKNOWN = "UNKNOWN"
+
+
+class FieldStatus(StrEnum):
+    """Status of a field on the canonical applicant profile."""
+
+    CONFIRMED = "CONFIRMED"
+    CONFLICTING = "CONFLICTING"
+    UNCERTAIN = "UNCERTAIN"
+    NOT_FOUND = "NOT_FOUND"
+
+
+class RuleResult(StrEnum):
+    PASS = "PASS"
+    FAIL = "FAIL"
+    REVIEW = "REVIEW"
+    NOT_APPLICABLE = "NOT_APPLICABLE"
+
+
+class Severity(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class DiscrepancyClassification(StrEnum):
+    CONFIRMED = "CONFIRMED"
+    POTENTIAL = "POTENTIAL"
+    NOT_A_DISCREPANCY = "NOT_A_DISCREPANCY"
+    UNCERTAIN = "UNCERTAIN"
+
+
+class DiscrepancyOrigin(StrEnum):
+    """Which layer produced the finding — deterministic or model-assessed."""
+
+    RULE_ENGINE = "RULE_ENGINE"
+    COMPARISON = "COMPARISON"
+    LLM_REASONER = "LLM_REASONER"
+
+
+class VerificationRecommendation(StrEnum):
+    KEEP = "KEEP"
+    MODIFY = "MODIFY"
+    REMOVE = "REMOVE"
+    MANUAL_REVIEW = "MANUAL_REVIEW"
+
+
+class EvidenceQuality(StrEnum):
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class DocumentQualityStatus(StrEnum):
+    """Deliberately never says 'fraud' — see the fraud/anomaly distinction."""
+
+    NO_ISSUE_OBSERVED = "NO_ISSUE_OBSERVED"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    POTENTIAL_ISSUE = "POTENTIAL_ISSUE"
+    UNABLE_TO_VERIFY = "UNABLE_TO_VERIFY"
+
+
+class QualityFlag(StrEnum):
+    UNREADABLE = "UNREADABLE"
+    MISSING_PAGES = "MISSING_PAGES"
+    CUT_OFF_TEXT = "CUT_OFF_TEXT"
+    DUPLICATE_DOCUMENT = "DUPLICATE_DOCUMENT"
+    LOW_OCR_CONFIDENCE = "LOW_OCR_CONFIDENCE"
+    UNCLEAR_IMAGE = "UNCLEAR_IMAGE"
+    INCONSISTENT_PAGE_STRUCTURE = "INCONSISTENT_PAGE_STRUCTURE"
+    MISSING_SIGNATURE = "MISSING_SIGNATURE"
+    MISSING_STAMP = "MISSING_STAMP"
+    EXPIRED_DOCUMENT = "EXPIRED_DOCUMENT"
+
+
+class OverallStatus(StrEnum):
+    CLEAR = "CLEAR"
+    REVIEW_REQUIRED = "REVIEW_REQUIRED"
+    HIGH_RISK = "HIGH_RISK"
+
+
+class ReportStatus(StrEnum):
+    PENDING = "PENDING"
+    GENERATED = "GENERATED"
+    QA_FAILED = "QA_FAILED"
+    FAILED = "FAILED"
+
+
+class ReviewDecision(StrEnum):
+    PENDING = "PENDING"
+    ACCEPTED = "ACCEPTED"
+    REJECTED = "REJECTED"
+    NEEDS_INFO = "NEEDS_INFO"
+
+
+class ErrorCode(StrEnum):
+    """Every failure surface in the pipeline maps onto one of these."""
+
+    UPLOAD_FAILED = "UPLOAD_FAILED"
+    UNSUPPORTED_FILE = "UNSUPPORTED_FILE"
+    CORRUPTED_FILE = "CORRUPTED_FILE"
+    PARSING_FAILED = "PARSING_FAILED"
+    OCR_FAILED = "OCR_FAILED"
+    CLASSIFICATION_FAILED = "CLASSIFICATION_FAILED"
+    EXTRACTION_FAILED = "EXTRACTION_FAILED"
+    LLM_TIMEOUT = "LLM_TIMEOUT"
+    LLM_INVALID_OUTPUT = "LLM_INVALID_OUTPUT"
+    RULE_ENGINE_FAILED = "RULE_ENGINE_FAILED"
+    REPORT_GENERATION_FAILED = "REPORT_GENERATION_FAILED"
+    QA_FAILED = "QA_FAILED"
+
+
+class AuditAction(StrEnum):
+    CASE_CREATED = "CASE_CREATED"
+    CASE_DELETED = "CASE_DELETED"
+    CASE_VIEWED = "CASE_VIEWED"
+    DOCUMENT_UPLOADED = "DOCUMENT_UPLOADED"
+    DOCUMENT_VIEWED = "DOCUMENT_VIEWED"
+    ANALYSIS_STARTED = "ANALYSIS_STARTED"
+    ANALYSIS_STEP = "ANALYSIS_STEP"
+    ANALYSIS_COMPLETED = "ANALYSIS_COMPLETED"
+    ANALYSIS_FAILED = "ANALYSIS_FAILED"
+    REPORT_GENERATED = "REPORT_GENERATED"
+    REPORT_DOWNLOADED = "REPORT_DOWNLOADED"
+    FLAG_REVIEWED = "FLAG_REVIEWED"

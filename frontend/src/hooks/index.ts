@@ -75,8 +75,20 @@ export function useCreateCase() {
 export function useUpload(caseId: string) {
   const client = useQueryClient()
   return useMutation({
-    mutationFn: ({ files, analyze }: { files: File[]; analyze: boolean }) =>
-      api.uploadDocuments(caseId, files, analyze),
+    mutationFn: async ({ files, analyze }: { files: File[]; analyze: boolean }) => {
+      const result = await api.uploadDocuments(caseId, files, analyze)
+      // The upload can succeed while the handoff to analysis fails: the files
+      // are stored, the response is 200, and analysis_queued says it never
+      // started. Ignoring that field left the page waiting on a pipeline that
+      // was never running, with the reason only in the server log.
+      if (analyze && result.accepted > 0 && !result.analysis_queued) {
+        throw new Error(
+          'The documents were uploaded, but the analysis could not be started. ' +
+            'Check the API log, then use Run analysis to retry.',
+        )
+      }
+      return result
+    },
     onSuccess: () => {
       client.invalidateQueries({ queryKey: keys.documents(caseId) })
       client.invalidateQueries({ queryKey: keys.status(caseId) })

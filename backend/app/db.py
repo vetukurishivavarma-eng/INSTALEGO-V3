@@ -72,12 +72,40 @@ engine: Engine = create_engine(settings.DATABASE_URL, **_engine_kwargs())
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, class_=Session)
 
 
+# How long a connection waits for a lock before giving up. SQLite's default
+# through Python is five seconds, which is shorter than a single model call:
+# a UI polling case status while an analysis runs would see "database is
+# locked" rather than wait.
+SQLITE_BUSY_TIMEOUT_MS = 15_000
+
+
 @event.listens_for(Engine, "connect")
 def _sqlite_pragmas(dbapi_connection, connection_record) -> None:  # noqa: ANN001
-    """Foreign keys are off by default in SQLite; the cascades depend on them."""
-    if settings.DATABASE_URL.startswith("sqlite"):
-        cursor = dbapi_connection.cursor()
+    """Make SQLite behave under the concurrency FastAPI actually produces.
+
+    Sync endpoints run in a threadpool, so several requests hold connections at
+    once, and the UI polls case status every second or so while an analysis is
+    running. In SQLite's default rollback-journal mode a writer excludes every
+    reader, so that polling alone is enough to turn an ordinary write into a
+    500. WAL lets readers and one writer proceed together, and the busy timeout
+    makes a second writer wait its turn instead of failing immediately.
+
+    Foreign keys are off by default in SQLite and the cascades depend on them.
+    """
+    if not settings.DATABASE_URL.startswith("sqlite"):
+        return
+
+    cursor = dbapi_connection.cursor()
+    try:
         cursor.execute("PRAGMA foreign_keys=ON")
+        # A property of the database file, not the connection, so this is
+        # idempotent; an in-memory database has no WAL and will refuse it.
+        cursor.execute("PRAGMA journal_mode=WAL")
+        cursor.execute(f"PRAGMA busy_timeout={SQLITE_BUSY_TIMEOUT_MS}")
+        # Safe with WAL: a crash can lose the last transaction but cannot
+        # corrupt the file, which is the right trade for a dev database.
+        cursor.execute("PRAGMA synchronous=NORMAL")
+    finally:
         cursor.close()
 
 

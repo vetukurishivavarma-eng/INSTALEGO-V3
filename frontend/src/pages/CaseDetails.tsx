@@ -95,9 +95,9 @@ export default function CaseDetails() {
 
       {progress && <CaseStatusBar progress={progress} />}
 
-      {analyze.error && (
+      {(analyze.error || upload.error) && (
         <div className="card border-red-200 p-4 text-sm text-red-700">
-          {(analyze.error as Error).message}
+          {((analyze.error || upload.error) as Error).message}
         </div>
       )}
 

@@ -53,6 +53,44 @@ class TestCaseAndUpload:
         assert result["accepted"] == 5
         assert result["rejected"] == 0
 
+    def test_uploading_with_analyze_true_actually_starts_the_analysis(
+        self, client, consistent_case_files
+    ):
+        """The path the UI uses, and the one nothing here covered.
+
+        Every other test uploads with analyze=false and then POSTs to
+        /analyze as a second request, by which time the upload transaction has
+        committed. Uploading with analyze=true hands off inside the request,
+        and the inline backend opens its own session: on SQLite, one writer at
+        a time, that deadlocked against the locks the upload still held. It
+        failed every time, the endpoint still returned 200 with
+        analysis_queued=false, and the case simply never progressed.
+        """
+        case = create_case(client)
+        result = upload(client, case["id"], consistent_case_files, analyze=True)
+
+        assert result["accepted"] == 5
+        assert result["analysis_queued"] is True, result
+
+        status = client.get(f"/api/cases/{case['id']}/status")
+        assert status.status_code == 200
+        assert status.json()["status"] not in {CaseStatus.CREATED, CaseStatus.UPLOADING}
+
+    def test_a_write_succeeds_while_a_case_is_being_analysed(self, client, consistent_case_files):
+        """Creating a second case must not fail because the first is busy.
+
+        In SQLite's default journal mode a writer excludes readers, and the UI
+        polls case status throughout an analysis; that alone was enough to turn
+        an ordinary insert into a 500.
+        """
+        first = create_case(client)
+        upload(client, first["id"], consistent_case_files, analyze=True)
+
+        second = client.post(
+            "/api/cases", json={"bank_id": "bank_a", "applicant_name": "Second Applicant"}
+        )
+        assert second.status_code == 201, second.text
+
     def test_an_unsupported_file_is_rejected_without_failing_the_batch(
         self, client, consistent_case_files, tmp_path
     ):

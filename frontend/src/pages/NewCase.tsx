@@ -34,9 +34,16 @@ export default function NewCase() {
 
   async function handleUpload(files: File[], analyze: boolean) {
     if (!caseId) return
-    const response = await upload.mutateAsync({ files, analyze })
-    setResults(response.results)
-    if (analyze && response.accepted > 0) navigate(`/cases/${caseId}`)
+    try {
+      const response = await upload.mutateAsync({ files, analyze })
+      setResults(response.results)
+      if (analyze && response.accepted > 0) navigate(`/cases/${caseId}`)
+    } catch {
+      // mutateAsync rethrows, and an uncaught rejection here would leave the
+      // page silent while the mutation's own error state carries the reason.
+      // It is rendered below; staying on this page is correct, because the
+      // documents may well have been stored.
+    }
   }
 
   return (
@@ -101,6 +108,10 @@ export default function NewCase() {
 
           {createCase.error && (
             <p className="text-sm text-red-700">{(createCase.error as Error).message}</p>
+          )}
+
+          {upload.error && (
+            <p className="text-sm text-red-700">{(upload.error as Error).message}</p>
           )}
         </div>
       </div>

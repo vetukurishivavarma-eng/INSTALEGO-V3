@@ -65,6 +65,15 @@ async def upload_documents(
     if accepted and analyze:
         from app.tasks import enqueue_analysis
 
+        # The uploads must be committed before analysis is handed off, because
+        # the analysis does not share this transaction. The inline backend
+        # opens its own session in this same thread, so on SQLite -- one writer
+        # at a time -- it deadlocks against the locks this request still holds,
+        # every time. On PostgreSQL it is a visibility race instead: the arq
+        # worker is a separate process and can pick the job up before these
+        # rows are readable. Committing first is what both need.
+        db.commit()
+
         outcome = enqueue_analysis(case.id, actor=principal.subject)
         queued = bool(outcome.get("queued"))
         if not queued:

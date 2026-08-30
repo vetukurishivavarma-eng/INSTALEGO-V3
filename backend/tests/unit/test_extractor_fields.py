@@ -14,7 +14,9 @@ description that never reaches the prompt.
 from __future__ import annotations
 
 from app.agents.document_extractor import (
+    CONFUSABLE_TYPES,
     FIELD_DESCRIPTIONS,
+    GENERIC_FIELDS,
     REQUIRED_FIELDS,
     DocumentExtractorAgent,
     canonical_field_for,
@@ -58,6 +60,45 @@ class TestFieldDescriptions:
         assert canonical_field_for("party_two") is None
 
 
+class TestConfusableTypes:
+    """Extraction must not depend on which of two plausible labels won.
+
+    The sanction letter came back as AGREEMENT on one run and LOAN_APPLICATION
+    on the next from identical pixels and an unchanged classifier prompt. The
+    type selects the field list, so two of its fields were requested on one run
+    and not the other, and the document's score moved without anything having
+    changed. A sharper classifier prompt addresses the label; this addresses
+    the consequence.
+    """
+
+    def test_every_member_of_a_group_asks_for_the_same_fields(self):
+        for group in CONFUSABLE_TYPES:
+            lists = [required_fields_for(member) for member in group]
+            assert all(names == lists[0] for names in lists), group
+
+    def test_the_widened_list_contains_what_each_member_needs(self):
+        for group in CONFUSABLE_TYPES:
+            widened = set(required_fields_for(group[0]))
+            for member in group:
+                assert set(REQUIRED_FIELDS.get(member, ())) <= widened, member
+
+    def test_widening_does_not_duplicate_a_shared_field(self):
+        """loan_amount is on both lists; asking for it twice would put two
+        entries for one value into the audit chain."""
+        for group in CONFUSABLE_TYPES:
+            names = required_fields_for(group[0])
+            assert len(names) == len(set(names)), group
+
+    def test_a_type_outside_any_group_is_untouched(self):
+        assert required_fields_for("AADHAAR") == REQUIRED_FIELDS["AADHAAR"]
+        assert required_fields_for("SALARY_SLIP") == REQUIRED_FIELDS["SALARY_SLIP"]
+
+    def test_an_unrecognised_type_still_falls_back_to_the_identity_core(self):
+        """An unclassified document must not be mined speculatively for
+        financial values."""
+        assert required_fields_for("UNKNOWN") == GENERIC_FIELDS
+
+
 class TestPromptWiring:
     def _system_prompt_for(self, document_type: str) -> str:
         agent = DocumentExtractorAgent()
@@ -73,6 +114,19 @@ class TestPromptWiring:
         prompt = self._system_prompt_for("AGREEMENT")
         assert "party_two: " in prompt
         assert "not the address block printed beneath it" in prompt
+
+    def test_the_classifier_is_told_how_to_tell_the_confusable_types_apart(self):
+        """The classifier had the same problem the extractor did: a list of
+        bare type names, and no statement of what separates two of them."""
+        from app.agents.base_agent import load_prompt
+
+        # The prompt is wrapped prose, so a phrase can straddle a line break.
+        prompt = " ".join(load_prompt("classifier").split())
+        assert "decide by WHO ISSUED the document and WHAT IT DOES" in prompt
+        assert "A letter that refers to an application is not itself an application" in prompt
+        for group in CONFUSABLE_TYPES:
+            for member in group:
+                assert f"{member} -" in prompt, member
 
     def test_the_prompt_states_the_boundary_rule_in_general(self):
         """Descriptions cover the fields we know about; the rule covers the

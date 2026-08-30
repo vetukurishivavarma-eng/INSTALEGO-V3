@@ -13,7 +13,7 @@ from __future__ import annotations
 import io
 
 import numpy as np
-from PIL import Image, ImageOps, UnidentifiedImageError
+from PIL import Image, ImageFilter, ImageOps, UnidentifiedImageError
 
 from app.extraction.base import ParsedDocument, ParsedPage, ParsingError
 
@@ -21,7 +21,16 @@ from app.extraction.base import ParsedDocument, ParsedPage, ParsingError
 # deliberately low: it is meant to catch clearly unusable images, not to
 # second-guess a merely mediocre scan.
 BLUR_VARIANCE_THRESHOLD = 60.0
-DARK_MEAN_THRESHOLD = 45
+# Exposure is measured on the paper, not on the page average. A document is
+# mostly blank sheet, so the mean brightness reports the sheet: a page
+# photographed at a third of the exposure it needed still averages about 86,
+# nowhere near any threshold a fully black image would require, and the check
+# that used the mean never fired on a real underexposure. The 95th percentile
+# *is* the paper, and if the paper has gone dark the photograph is
+# underexposed. Across the degradation fixtures an underexposed page reads
+# about 88 and the darkest still-legible one — a page with a shadow thrown
+# across it — about 224, so this sits clear of both.
+PAPER_LEVEL_THRESHOLD = 150
 # A document is mostly white paper, so a high mean brightness is normal and
 # says nothing about legibility. What does matter is whether any ink is
 # present at all: a blank or completely washed-out page has almost none.
@@ -85,10 +94,10 @@ def _assess(image: Image.Image) -> tuple[list[str], list[str], float | None]:
     if grayscale.size == 0:
         return flags, notes, None
 
-    mean = float(grayscale.mean())
-    if mean < DARK_MEAN_THRESHOLD:
+    paper_level = float(np.percentile(grayscale, 95))
+    if paper_level < PAPER_LEVEL_THRESHOLD:
         flags.append("UNCLEAR_IMAGE")
-        notes.append("image is very dark")
+        notes.append(f"the page is underexposed (the paper itself reads {paper_level:.0f}/255)")
 
     ink_fraction = float((grayscale < INK_THRESHOLD).mean())
     if ink_fraction < MIN_INK_FRACTION:
@@ -104,20 +113,37 @@ def _assess(image: Image.Image) -> tuple[list[str], list[str], float | None]:
 
 
 def _laplacian_variance(grayscale: np.ndarray) -> float | None:
-    """Focus measure. Uses OpenCV when present, NumPy otherwise."""
+    """Focus measure, taken after a median pass. OpenCV when present, NumPy otherwise.
+
+    Laplacian variance counts any high-frequency energy as detail and cannot
+    tell a sharp stroke from a speck of photocopier dust. Measured raw, speckle
+    raised a page's focus score sevenfold and grain fivefold — so a noisy
+    out-of-focus scan, which is the common case, scored as sharper than a clean
+    one and was never flagged.
+
+    A 3x3 median removes isolated outliers and leaves real strokes intact.
+    After it, the same speckled page scores within a few per cent of the clean
+    original, and the genuinely soft pages still fall well under the threshold.
+    """
+    if grayscale.shape[0] < 3 or grayscale.shape[1] < 3:
+        return None
+
+    denoised = np.asarray(
+        Image.fromarray(grayscale.astype("uint8")).filter(ImageFilter.MedianFilter(3)),
+        dtype=np.float64,
+    )
+
     try:
         import cv2
 
-        return float(cv2.Laplacian(grayscale.astype("uint8"), cv2.CV_64F).var())
+        return float(cv2.Laplacian(denoised.astype("uint8"), cv2.CV_64F).var())
     except Exception:  # noqa: BLE001 - OpenCV is optional at runtime
-        if grayscale.shape[0] < 3 or grayscale.shape[1] < 3:
-            return None
         laplacian = (
-            -4 * grayscale[1:-1, 1:-1]
-            + grayscale[:-2, 1:-1]
-            + grayscale[2:, 1:-1]
-            + grayscale[1:-1, :-2]
-            + grayscale[1:-1, 2:]
+            -4 * denoised[1:-1, 1:-1]
+            + denoised[:-2, 1:-1]
+            + denoised[2:, 1:-1]
+            + denoised[1:-1, :-2]
+            + denoised[1:-1, 2:]
         )
         return float(laplacian.var())
 

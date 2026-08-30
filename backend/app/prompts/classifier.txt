@@ -23,6 +23,25 @@ TAX_DOCUMENT
 OTHER
 UNKNOWN
 
+Some of these are easily confused. Where a pair below applies, decide by WHO
+ISSUED the document and WHAT IT DOES, not by the subject it mentions:
+
+LOAN_APPLICATION - a form completed and submitted BY the applicant, asking for
+a facility. It carries their declarations and their signature, and it states
+what they are requesting.
+
+AGREEMENT - a document issued BY the lender, or executed between the parties,
+recording terms that have already been decided: a sanction letter, an offer
+letter, a loan agreement. It states what the bank has granted, not what the
+applicant has asked for. A letter that refers to an application is not itself
+an application.
+
+LEGAL_DOCUMENT - a legal instrument that is not a lending agreement: an
+affidavit, a power of attorney, a court order, a notice.
+
+EMPLOYMENT_PROOF - confirms that someone is employed. A document that states a
+month's pay in detail is a SALARY_SLIP even when it also proves employment.
+
 Return JSON only:
 
 {
@@ -38,6 +57,7 @@ Rules:
 
 - Do not guess when evidence is insufficient.
 - Use UNKNOWN when classification cannot be established.
+- Classify the document in front of you, not the transaction it belongs to.
 - Do not extract applicant values here.
 - Do not make legal conclusions.
 - Confidence must reflect actual visual/textual evidence.

@@ -124,27 +124,12 @@ def test_the_worst_case_is_the_worst_case():
     assert _contrast(worst) < _contrast(DEGRADATIONS["faded"].apply(base_image("pan")))
 
 
-def test_severe_conditions_trip_the_image_quality_check():
-    """The conditions marked "flag" must actually be caught by the parser's own
-    quality assessment, which is the mechanism that keeps a bad scan from being
-    read confidently."""
-    from app.extraction.image import parse_image
-
-    import io
-
-    for name in ("blur_severe", "very_faded", "tiny", "worst_case"):
-        buffer = io.BytesIO()
-        DEGRADATIONS[name].apply(base_image("pan")).save(buffer, format="PNG")
-        parsed = parse_image(buffer.getvalue())
-        assert "UNCLEAR_IMAGE" in parsed.quality_flags, name
-
-
 # --------------------------------------------------------------------------
 # What the sweep found out about the quality check itself
 # --------------------------------------------------------------------------
-# Both of these are real gaps in app/extraction/image.py, found by running the
-# catalogue against it. They are written as strict xfails rather than deleted,
-# so that fixing either one turns the test green and tells us so.
+# Both of these were real gaps in app/extraction/image.py, found by running the
+# catalogue against it and since fixed. They stay as tests because both fixes
+# are threshold judgements that a future change could quietly undo.
 def _flags_for(name: str) -> list[str]:
     import io
 
@@ -155,25 +140,57 @@ def _flags_for(name: str) -> list[str]:
     return list(parse_image(buffer.getvalue()).quality_flags)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="a page is mostly white paper, so darkening it to a third of its "
-    "brightness still leaves the mean above DARK_MEAN_THRESHOLD; the check "
-    "should measure the ink, not the sheet",
-)
 def test_an_underexposed_page_is_flagged():
+    """The check used to average the whole page. A document is mostly white
+    paper, so the mean measured the sheet: a page at a third of its exposure
+    still averaged about 86 and never tripped a threshold meant for a black
+    image. Exposure is now read off the paper itself."""
     assert "UNCLEAR_IMAGE" in _flags_for("dark")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="Laplacian variance counts noise as detail, so speckle and grain "
-    "raise the focus score instead of lowering it; the measure needs a "
-    "denoising pass before it can be trusted on a scanned page",
-)
-def test_noise_defeats_the_blur_detector():
-    clean = _sharpness(base_image("pan"))
-    assert _sharpness(DEGRADATIONS["speckled"].apply(base_image("pan"))) < clean
+def test_a_legible_page_with_a_shadow_across_it_is_not_flagged_as_underexposed():
+    """The other side of that threshold. Uneven lighting is normal in a phone
+    photograph and must not be called an exposure failure."""
+    from app.extraction.image import PAPER_LEVEL_THRESHOLD
+
+    shadowed = np.asarray(DEGRADATIONS["shadowed"].apply(base_image("pan")).convert("L"))
+    assert float(np.percentile(shadowed, 95)) > PAPER_LEVEL_THRESHOLD
+
+
+def test_noise_does_not_defeat_the_blur_detector():
+    """Laplacian variance counts any high-frequency energy as detail, so raw
+    speckle raised a page's focus score sevenfold and a noisy blurred scan --
+    the common case -- scored sharper than a clean one. A median pass restores
+    the ordering."""
+    from app.extraction.image import _laplacian_variance
+
+    clean = _laplacian_variance(np.asarray(base_image("pan").convert("L"), dtype=np.float64))
+    for name in ("speckled", "noisy"):
+        measured = _laplacian_variance(
+            np.asarray(DEGRADATIONS[name].apply(base_image("pan")).convert("L"), dtype=np.float64)
+        )
+        # Within a few per cent of the clean page, rather than multiples of it.
+        assert measured < clean * 1.1, name
+        assert "UNCLEAR_IMAGE" not in _flags_for(name), name
+
+
+def test_the_median_pass_does_not_blunt_a_genuinely_sharp_page():
+    """Denoising costs a little real detail. The margin over the threshold has
+    to survive it, or the fix for noise becomes a false-positive machine."""
+    from app.extraction.image import BLUR_VARIANCE_THRESHOLD, _laplacian_variance
+
+    clean = _laplacian_variance(np.asarray(base_image("pan").convert("L"), dtype=np.float64))
+    assert clean > BLUR_VARIANCE_THRESHOLD * 5
+
+
+def test_every_condition_marked_flag_is_caught_by_the_parser():
+    """The catalogue's own expectations, checked against the parser rather than
+    against a live model: a page marked "flag" must be one the pipeline refuses
+    to read confidently."""
+    for name, condition in DEGRADATIONS.items():
+        if condition.expectation != "flag":
+            continue
+        assert "UNCLEAR_IMAGE" in _flags_for(name), name
 
 
 # --------------------------------------------------------------------------

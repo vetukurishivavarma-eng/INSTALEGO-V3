@@ -224,7 +224,33 @@ FIELD_DESCRIPTIONS: dict[str, str] = {
 }
 
 
+# Types a document can plausibly land on either side of, where the classifier
+# is not reliably repeatable. A sanction letter came back as AGREEMENT on one
+# run and LOAN_APPLICATION on the next from identical pixels and an unchanged
+# prompt, and because the type selects the field list, party_two and
+# agreement_date were requested on one run and not the other.
+#
+# Sharpening the classifier prompt is the fix for the label. This is the fix
+# for the consequence: within a group, every member's fields are requested, so
+# what gets extracted no longer depends on which way a coin landed. It costs
+# some tokens and some NOT_FOUND entries, which is cheap next to a field
+# silently going missing. `_drop_unrequested` still bounds what comes back, and
+# the recorded `document_type` is unaffected.
+CONFUSABLE_TYPES: tuple[tuple[str, ...], ...] = (
+    (DocumentType.LOAN_APPLICATION, DocumentType.AGREEMENT, DocumentType.LEGAL_DOCUMENT),
+)
+
+
 def required_fields_for(document_type: str) -> list[str]:
+    """The fields to ask for, widened across any confusable group."""
+    for group in CONFUSABLE_TYPES:
+        if document_type in group:
+            widened: list[str] = []
+            for member in group:
+                for name in REQUIRED_FIELDS.get(member, ()):
+                    if name not in widened:
+                        widened.append(name)
+            return widened
     return REQUIRED_FIELDS.get(document_type, GENERIC_FIELDS)
 
 

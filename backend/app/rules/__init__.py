@@ -3,7 +3,7 @@
 Importing this package registers every rule with the engine.
 """
 
-from app.rules import dates, documents, financial, identity  # noqa: F401
+from app.rules import dates, documents, financial, identity, land  # noqa: F401
 from app.rules.registry import (
     DocumentView,
     FieldObservation,

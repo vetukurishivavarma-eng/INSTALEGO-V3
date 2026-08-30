@@ -37,7 +37,13 @@ CANONICAL_FIELDS: tuple[str, ...] = (
     "income",
     "bank_account",
     "loan_amount",
-    "property_details",
+    # Land title. property_details used to carry all three of these, so an
+    # address and a price landed on one field and the profile builder saw them
+    # as two documents disagreeing about a single value.
+    "property_address",
+    "property_value",
+    "survey_number",
+    "property_owner_name",
 )
 
 # Which normaliser applies to which field, used by the Python normalisation
@@ -59,6 +65,9 @@ FIELD_KINDS: dict[str, str] = {
     "loan_amount": "amount",
     "current_address": "address",
     "permanent_address": "address",
+    "property_address": "address",
+    "property_value": "amount",
+    "property_owner_name": "name",
 }
 
 

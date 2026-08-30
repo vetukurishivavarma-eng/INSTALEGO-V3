@@ -135,6 +135,27 @@ export default function CaseDetails() {
             </div>
           )}
 
+          {analysis?.completeness
+            ?.filter((area) => !area.satisfied)
+            .map((area) => (
+              // Deliberately not styled as a warning. Nothing here is wrong
+              // with the application: a section of the report is not covered,
+              // and this says what would cover it.
+              <div key={area.key} className="card border-sky-200">
+                <div className="card-header text-sky-800">
+                  {area.title} &mdash; not covered
+                </div>
+                <div className="space-y-2 px-4 py-3 text-sm">
+                  <p className="text-slate-700">{area.message}</p>
+                  {area.provided.length > 0 && (
+                    <p className="text-xs text-slate-500">
+                      Received: {area.provided.map(titleCase).join(', ')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+
           {analysis && (
             <FlagPanel
               discrepancies={analysis.discrepancies}

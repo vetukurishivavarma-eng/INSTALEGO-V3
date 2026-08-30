@@ -126,3 +126,133 @@ def _font(size: int):
         return ImageFont.load_default(size=size)
     except TypeError:
         return ImageFont.load_default()
+
+
+# --------------------------------------------------------------------------
+# Land title documents
+# --------------------------------------------------------------------------
+# A chain of title is a sequence, not a single document, so these are built as
+# a set: each deed hands the property to the buyer named in the next one. The
+# helper exists so a test can break exactly one link and change nothing else,
+# which is what makes a chain test mean something.
+def make_sale_deed(
+    path: str | Path,
+    *,
+    seller: str,
+    buyer: str,
+    registered_on: str,
+    survey_number: str = "42/1B",
+    consideration: str = "Rs. 42,00,000",
+    registration_number: str = "BLR-4-2024-1187",
+) -> Path:
+    return make_pdf(
+        path,
+        "DEED OF ABSOLUTE SALE",
+        {
+            "Seller": seller,
+            "Buyer": buyer,
+            "Survey Number": survey_number,
+            "Property Address": "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060",
+            "Sale Consideration": consideration,
+            "Registration Number": registration_number,
+            "Registration Date": registered_on,
+        },
+    )
+
+
+def make_encumbrance_certificate(
+    path: str | Path,
+    *,
+    owner: str,
+    period_from: str = "01/01/2013",
+    period_to: str = "01/07/2026",
+    encumbrance: str = "NIL",
+    survey_number: str = "42/1B",
+) -> Path:
+    return make_pdf(
+        path,
+        "ENCUMBRANCE CERTIFICATE - OFFICE OF THE SUB-REGISTRAR",
+        {
+            "Owner Name": owner,
+            "Survey Number": survey_number,
+            "Property Address": "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060",
+            "Period From": period_from,
+            "Period To": period_to,
+            "Encumbrance": encumbrance,
+            "Registration Number": "EC-BLR-2026-9921",
+        },
+    )
+
+
+def make_khata_certificate(
+    path: str | Path, *, owner: str, survey_number: str = "42/1B"
+) -> Path:
+    return make_pdf(
+        path,
+        "KHATA CERTIFICATE - BRUHAT BENGALURU MAHANAGARA PALIKE",
+        {
+            "Owner Name": owner,
+            "Khata Number": "184/14/8/42-1B",
+            "Survey Number": survey_number,
+            "Property Address": "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060",
+            "Assessment Year": "2026-27",
+        },
+    )
+
+
+def make_property_tax_receipt(
+    path: str | Path, *, owner: str, receipt_date: str = "10/05/2026"
+) -> Path:
+    return make_pdf(
+        path,
+        "PROPERTY TAX PAID RECEIPT",
+        {
+            "Owner Name": owner,
+            "Khata Number": "184/14/8/42-1B",
+            "Property Address": "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060",
+            "Assessment Year": "2026-27",
+            "Amount Paid": "Rs. 8,420",
+            "Receipt Date": receipt_date,
+        },
+    )
+
+
+def make_land_pack(
+    directory: str | Path,
+    *,
+    applicant: str = "Ravi Kumar",
+    chain: tuple[tuple[str, str, str], ...] = (
+        ("Anil Sharma", "Meera Reddy", "14/03/2015"),
+        ("Meera Reddy", "Suresh Kumar", "02/09/2019"),
+        ("Suresh Kumar", "Ravi Kumar", "21/06/2024"),
+    ),
+    encumbrance: str = "NIL",
+    khata_owner: str | None = None,
+) -> dict[str, Path]:
+    """A complete land pack: the deeds, the EC, the khata and the tax receipt.
+
+    ``chain`` is the sequence of transfers. Passing a tuple whose seller does
+    not match the previous buyer is how a test produces a broken title without
+    disturbing anything else.
+    """
+    directory = Path(directory)
+    documents: dict[str, Path] = {}
+    for index, (seller, buyer, registered) in enumerate(chain, start=1):
+        documents[f"deed_{index}"] = make_sale_deed(
+            directory / f"SaleDeed{registered[-4:]}_{index}.pdf",
+            seller=seller,
+            buyer=buyer,
+            registered_on=registered,
+            registration_number=f"BLR-4-{registered[-4:]}-{1100 + index}",
+        )
+    owner = chain[-1][1] if chain else applicant
+    documents["ec"] = make_encumbrance_certificate(
+        directory / "EncumbranceCertificate.pdf", owner=owner, encumbrance=encumbrance
+    )
+    documents["khata"] = make_khata_certificate(
+        directory / "KhataCertificate.pdf", owner=khata_owner or owner
+    )
+    documents["tax"] = make_property_tax_receipt(
+        directory / "PropertyTaxReceipt.pdf", owner=khata_owner or owner
+    )
+    return documents

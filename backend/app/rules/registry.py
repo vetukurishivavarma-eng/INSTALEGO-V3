@@ -75,6 +75,18 @@ class RuleConfig:
         return dict(self.data.get("document_type_groups") or {})
 
     @property
+    def optional_document_sets(self) -> list[dict[str, Any]]:
+        """Sets whose absence leaves the report incomplete rather than failed.
+
+        Kept apart from ``required_documents`` deliberately. A required
+        document that is missing is a finding against the application; an
+        optional set that is missing is a statement about the report's own
+        coverage, and conflating the two would put a HIGH severity flag on
+        every personal loan for not supplying a title deed.
+        """
+        return [dict(item) for item in (self.data.get("optional_document_sets") or [])]
+
+    @property
     def thresholds(self) -> dict[str, float]:
         return dict((self.data.get("comparison") or {}).get("thresholds") or {})
 

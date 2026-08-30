@@ -138,6 +138,30 @@
       ]
     },
     {
+      "key": "report_coverage",
+      "title": "Report Coverage",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {
+          "key": "area",
+          "title": "Area"
+        },
+        {
+          "key": "status",
+          "title": "Status"
+        },
+        {
+          "key": "documents_provided",
+          "title": "Documents provided"
+        },
+        {
+          "key": "action",
+          "title": "To complete this section"
+        }
+      ]
+    },
+    {
       "key": "document_quality",
       "title": "Document Quality Observations",
       "type": "table",

@@ -40,7 +40,7 @@
         "income",
         "bank_account",
         "loan_amount",
-        "property_details"
+        "property_address"
       ]
     },
     {
@@ -140,6 +140,30 @@
         {
           "key": "reason",
           "title": "Reason"
+        }
+      ]
+    },
+    {
+      "key": "report_coverage",
+      "title": "Report Coverage",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {
+          "key": "area",
+          "title": "Area"
+        },
+        {
+          "key": "status",
+          "title": "Status"
+        },
+        {
+          "key": "documents_provided",
+          "title": "Documents provided"
+        },
+        {
+          "key": "action",
+          "title": "To complete this section"
         }
       ]
     },

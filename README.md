@@ -376,6 +376,86 @@ underexposed, and the median pass must not blunt a genuinely sharp page.
 None of this is visible from the nine end-to-end cases, which score 1.00 across
 the board.
 
+## Land title: the history of the property
+
+Verifying the applicant is one question. Whether the land they are borrowing
+against is actually theirs, and was cleanly theirs to acquire, is a different
+one about a different subject — and the system keeps them apart deliberately.
+
+### The chain of title
+
+Deeds are ordered by registration date and each transfer has to begin where the
+previous one ended:
+
+```
+Sale Deed 2015:  Anil Sharma   ->  Meera Reddy
+Sale Deed 2019:  Meera Reddy   ->  Suresh Kumar
+Sale Deed 2024:  Suresh Kumar  ->  Ravi Kumar      <- the applicant
+                 ^^^^^^^^^^^^
+                 seller[n] must be buyer[n-1]
+```
+
+A seller who never appears as the previous buyer means a conveyance is
+unaccounted for, which is the classic signature of a defective title. It is a
+set comparison over dates and names, so no model is asked about it. Alongside
+it: the deeds must run forward in time, every land document must quote the same
+survey number (a different survey number is different land), the final buyer
+must be the verified applicant, an encumbrance certificate must cover the years
+the bank asks for and record no subsisting charge, and the tax receipt must be
+recent enough to show the dues are clear.
+
+Four document types are recognised — `SALE_DEED`, `ENCUMBRANCE_CERTIFICATE`,
+`KHATA_CERTIFICATE`, `PROPERTY_TAX_RECEIPT` — and **only a deed contributes a
+link to the chain**. A khata extract or a tax receipt names an owner but
+records no transfer, and letting one supply a seller and a buyer would fabricate
+a conveyance that never happened.
+
+### Two things that must not leak into the applicant
+
+Both of these are quiet failures rather than loud ones, and both have tests of
+their own:
+
+- **Previous owners are not the applicant.** `seller_name`, `buyer_name` and
+  `property_owner_name` are canonical fields in their own right, never folded
+  into `name`. Folding them in would raise a `NAME_MISMATCH` against the
+  applicant on *every honest chain of title*, because a twenty-year-old deed
+  naming a stranger is the point of the document, not a contradiction.
+- **A pending mutation is a property fact.** A khata still standing in the
+  seller's name is common and worth reporting, but as
+  `PROPERTY_NOT_IN_APPLICANT_NAME` — not as the applicant being a different
+  person.
+
+Fixing this required splitting `property_details`, which had been carrying the
+property's address *and* its price on one canonical field, so the profile
+builder saw an address and an amount as two documents disagreeing about a
+single value.
+
+### When the land documents are not there
+
+Nothing is wrong. A personal loan needs no title deed, and reporting one as
+missing would be a fabricated finding — the failure mode this project is built
+to avoid. So absence is handled as **report coverage**, not as a discrepancy:
+
+> **Land and property documents — not covered**
+> Upload the sale deed, the encumbrance certificate, the khata extract and the
+> latest property tax receipt to include the land ownership history in this
+> report.
+
+It produces no severity, no discrepancy and no change to the case status, and
+it appears as its own section in the report and its own panel in the UI. Supply
+some of the set and it says which of them is still wanted; supply all four and
+it says the section is complete.
+
+The distinction is the whole design. `missing_documents` means *the bank
+required this and did not get it*. `completeness` means *this report does not
+cover that, and here is what would let it*. A reviewer needs to be able to tell
+"we checked and it is wrong" from "we did not check".
+
+Configured per bank under `optional_document_sets`, so the same machinery
+covers any future set — guarantor papers, business accounts — without new code.
+
+---
+
 ## The pipeline
 
 ```
@@ -525,6 +605,17 @@ validated on extension, size and magic bytes.
   storage layer leave room to add pgvector or Qdrant without restructuring.
 - **Single tenant.** `Principal.tenant` exists and is checked, but nothing
   populates it yet.
+- **The encumbrance certificate is read as a summary, not as a ledger.** Its
+  period, its owner and whether it records a charge are extracted; the list of
+  individual transactions inside it is not, because the extraction schema holds
+  flat fields and a transaction list needs structure. The chain of title is
+  therefore built from the deeds themselves. Reading the EC's own table would
+  let a chain be verified from a single document.
+- **The land rules have not been measured against a real model.** The rules and
+  the report path are covered offline against the stub; what a vision model
+  makes of an actual registered deed — dense legal prose, often bilingual, often
+  a photocopy of a photocopy — is unmeasured. The degradation sweep does not
+  cover land documents yet.
 - **Report QA regenerates once.** A report failing QA twice is stored as
   `QA_FAILED` rather than released.
 - **A figure and its word form are never cross-checked.** Both are read, the

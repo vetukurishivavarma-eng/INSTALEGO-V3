@@ -156,6 +156,16 @@ export interface AnalysisDocument {
   error_code: string | null
 }
 
+export interface DocumentSetStatus {
+  key: string
+  title: string
+  satisfied: boolean
+  unlocks: string
+  provided: string[]
+  awaiting: string[]
+  message: string
+}
+
 export interface CanonicalAnalysis {
   case_id: string
   case_ref: string
@@ -165,6 +175,7 @@ export interface CanonicalAnalysis {
   validations: ValidationSummary[]
   discrepancies: Discrepancy[]
   missing_documents: MissingDocument[]
+  completeness: DocumentSetStatus[]
   document_quality: AnalysisDocument[]
   final_status: OverallStatus
   overall_confidence: number

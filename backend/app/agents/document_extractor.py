@@ -123,8 +123,45 @@ REQUIRED_FIELDS: dict[str, list[str]] = {
         "owner_name",
         "property_address",
         "property_value",
+        "survey_number",
         "document_date",
         "registration_number",
+    ],
+    # A deed records one transfer. Seller and buyer are what the ownership
+    # chain is built from, so they are asked for by name rather than left to
+    # a generic "owner".
+    DocumentType.SALE_DEED: [
+        "seller_name",
+        "buyer_name",
+        "property_address",
+        "survey_number",
+        "property_value",
+        "registration_number",
+        "registration_date",
+    ],
+    DocumentType.ENCUMBRANCE_CERTIFICATE: [
+        "owner_name",
+        "property_address",
+        "survey_number",
+        "ec_period_from",
+        "ec_period_to",
+        "encumbrance_status",
+        "registration_number",
+    ],
+    DocumentType.KHATA_CERTIFICATE: [
+        "owner_name",
+        "property_address",
+        "survey_number",
+        "khata_number",
+        "assessment_year",
+    ],
+    DocumentType.PROPERTY_TAX_RECEIPT: [
+        "owner_name",
+        "property_address",
+        "khata_number",
+        "assessment_year",
+        "tax_amount_paid",
+        "receipt_date",
     ],
     DocumentType.FINANCIAL_STATEMENT: [
         "name",
@@ -167,7 +204,10 @@ CANONICAL_MAP: dict[str, str] = {
     "applicant_name": "name",
     "account_holder_name": "name",
     "employee_name": "name",
-    "owner_name": "name",
+    # Not "name": see seller_name/buyer_name below. A khata standing in the
+    # previous owner's name is a pending mutation, not a contradiction about
+    # who the applicant is.
+    "owner_name": "property_owner_name",
     "father_name": "father_name",
     "mother_name": "mother_name",
     "spouse_name": "spouse_name",
@@ -181,7 +221,8 @@ CANONICAL_MAP: dict[str, str] = {
     "email": "email",
     "address": "current_address",
     "permanent_address": "permanent_address",
-    "property_address": "property_details",
+    "property_address": "property_address",
+    "survey_number": "survey_number",
     "employer": "employer",
     "designation": "designation",
     "income": "income",
@@ -191,7 +232,13 @@ CANONICAL_MAP: dict[str, str] = {
     "net_salary": "net_salary",
     "account_number": "bank_account",
     "loan_amount": "loan_amount",
-    "property_value": "property_details",
+    "property_value": "property_value",
+    # Deliberately NOT mapped to `name`: the parties to a transfer are facts
+    # about the property's history, not about who the applicant is. Folding a
+    # previous owner into the applicant profile would manufacture a name
+    # conflict on every honest chain of title.
+    "seller_name": "seller_name",
+    "buyer_name": "buyer_name",
 }
 
 
@@ -221,6 +268,35 @@ FIELD_DESCRIPTIONS: dict[str, str] = {
     "owner_name": "the owner's name only, without the property address",
     "address": "the full postal address, without the name of the person it belongs to",
     "permanent_address": "the full permanent address, without the name it belongs to",
+    "seller_name": (
+        "the party transferring the property away in this deed - the vendor, "
+        "first party or transferor. Their name only"
+    ),
+    "buyer_name": (
+        "the party receiving the property in this deed - the purchaser, second "
+        "party or transferee. Their name only"
+    ),
+    "owner_name": "the person the record names as the current owner, their name only",
+    "property_address": (
+        "the address of the land or property this document concerns, which is "
+        "not the address of the person who owns it"
+    ),
+    "survey_number": (
+        "the survey, plot or khasra number identifying the land itself - not "
+        "the khata number, the registration number or the door number"
+    ),
+    "khata_number": (
+        "the municipal khata or property tax account number - not the survey "
+        "number and not the registration number"
+    ),
+    "registration_number": (
+        "the number the sub-registrar assigned when the document was "
+        "registered - not the survey or khata number"
+    ),
+    "encumbrance_status": (
+        "whether the certificate records any subsisting mortgage, lien or "
+        "charge over the property. Answer NIL when it records none"
+    ),
 }
 
 
@@ -238,6 +314,13 @@ FIELD_DESCRIPTIONS: dict[str, str] = {
 # the recorded `document_type` is unaffected.
 CONFUSABLE_TYPES: tuple[tuple[str, ...], ...] = (
     (DocumentType.LOAN_APPLICATION, DocumentType.AGREEMENT, DocumentType.LEGAL_DOCUMENT),
+    # Both are municipal records that name the owner and quote the same
+    # property, and they are told apart mainly by whether money was paid.
+    # A deed and an encumbrance certificate are left out on purpose: only a
+    # deed should ever yield seller_name and buyer_name, because the ownership
+    # chain is built from those and a stray pair off a tax receipt would
+    # fabricate a transfer that never happened.
+    (DocumentType.KHATA_CERTIFICATE, DocumentType.PROPERTY_TAX_RECEIPT),
 )
 
 

@@ -60,6 +60,7 @@ from app.schemas.report import (
     AnalysisVersions,
     CanonicalAnalysis,
     DocumentSummary,
+    DocumentSetStatus,
     MissingDocument,
     ValidationSummary,
 )
@@ -298,6 +299,7 @@ def build_analysis(db: Session, case_id: UUID | str) -> CanonicalAnalysis:
 
     documents = list(db.scalars(select(Document).where(Document.case_id == case.id)))
     summaries = [_document_summary(document) for document in documents]
+    coverage = _completeness(config, summaries)
 
     validations = list(
         db.scalars(select(ValidationResult).where(ValidationResult.case_id == case.id))
@@ -337,6 +339,7 @@ def build_analysis(db: Session, case_id: UUID | str) -> CanonicalAnalysis:
         ],
         discrepancies=findings,
         missing_documents=missing,
+        completeness=coverage,
         document_quality=[s for s in summaries if s.quality_status != "NO_ISSUE_OBSERVED"],
         final_status=decision.status,
         overall_confidence=overall_confidence(findings, confidences),
@@ -599,6 +602,56 @@ def _build_row(
         rules_version=rules_version,
         review_decision=ReviewDecision.PENDING,
     )
+
+
+def _completeness(config, summaries: list) -> list[DocumentSetStatus]:  # noqa: ANN001
+    """Which optional document sets were covered, and what to upload if not.
+
+    Deliberately separate from the discrepancy path. Absence produces no
+    finding, no severity and no effect on the case status — a personal loan
+    that supplies no title deed is not defective, its report simply does not
+    cover the land. What it produces is a sentence a reviewer can act on.
+    """
+    supplied = {str(summary.document_type) for summary in summaries}
+    coverage: list[DocumentSetStatus] = []
+
+    for declared in config.optional_document_sets:
+        accepts = list(declared.get("accepts") or [])
+        expects = list(declared.get("expects") or accepts)
+        title = str(declared.get("title") or declared.get("key", ""))
+        unlocks = str(declared.get("unlocks") or "").strip()
+
+        provided = [name for name in expects if name in supplied]
+        # Anything accepted but unexpected still counts as engagement with the
+        # set: a generic PROPERTY_DOCUMENT means land papers were supplied.
+        provided += [name for name in accepts if name in supplied and name not in provided]
+        awaiting = [name for name in expects if name not in supplied]
+
+        if not provided:
+            message = str(declared.get("prompt") or "").strip() or (
+                f"Upload {title.lower()} to include {unlocks} in this report."
+            )
+        elif awaiting:
+            readable = ", ".join(name.replace("_", " ").lower() for name in awaiting)
+            message = (
+                f"{len(provided)} of {len(expects)} {title.lower()} were supplied. "
+                f"Upload the {readable} to complete {unlocks or title.lower()}."
+            )
+        else:
+            message = f"{title} are complete."
+
+        coverage.append(
+            DocumentSetStatus(
+                key=str(declared.get("key", "")),
+                title=title,
+                satisfied=not awaiting and bool(provided),
+                unlocks=unlocks,
+                provided=provided,
+                awaiting=awaiting,
+                message=message,
+            )
+        )
+    return coverage
 
 
 def _missing_documents(rule_outcomes: list) -> list[MissingDocument]:  # noqa: ANN001

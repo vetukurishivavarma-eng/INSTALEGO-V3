@@ -110,6 +110,35 @@ documents:
     enabled: true
     severity: MEDIUM
 
+# Land title. These run only when land documents were supplied; none of them
+# fires because a document is absent.
+land:
+  ownership_chain:
+    enabled: true
+    severity: HIGH
+  chain_dates_ordered:
+    enabled: true
+    severity: MEDIUM
+  property_identity:
+    enabled: true
+    severity: HIGH
+  current_owner_is_applicant:
+    enabled: true
+    severity: HIGH
+  encumbrance:
+    enabled: true
+    severity: HIGH
+  encumbrance_period:
+    enabled: true
+    severity: MEDIUM
+    # How many years of registered history the bank wants an EC to cover.
+    required_years: 13
+  tax_currency:
+    enabled: true
+    severity: LOW
+    # A receipt older than this is not evidence that the dues are clear.
+    max_age_years: 2
+
 # What the bank insists on receiving. Checked deterministically against the
 # classified types, never by a model.
 required_documents:
@@ -117,6 +146,34 @@ required_documents:
   - ADDRESS_PROOF
   - INCOME_PROOF
   - BANK_STATEMENT
+
+# Documents that are not required, but whose absence leaves the report
+# incomplete rather than failed. Nothing here produces a discrepancy and
+# nothing here moves the case status: a personal loan needs no title deed, and
+# reporting one as missing would be a fabricated finding. What it does produce
+# is a plain statement in the report of what is not covered and what to upload
+# to cover it.
+optional_document_sets:
+  - key: LAND_TITLE
+    title: Land and property documents
+    unlocks: the ownership history of the property
+    accepts:
+      - SALE_DEED
+      - ENCUMBRANCE_CERTIFICATE
+      - KHATA_CERTIFICATE
+      - PROPERTY_TAX_RECEIPT
+      - PROPERTY_DOCUMENT
+    # Named individually so the report can say which of them is still wanted
+    # rather than only that the set is incomplete.
+    expects:
+      - SALE_DEED
+      - ENCUMBRANCE_CERTIFICATE
+      - KHATA_CERTIFICATE
+      - PROPERTY_TAX_RECEIPT
+    prompt: >-
+      Upload the sale deed, the encumbrance certificate, the khata extract and
+      the latest property tax receipt to include the land ownership history in
+      this report.
 
 # A requirement is satisfied by any of the concrete types listed against it, so
 # a PAN card can satisfy IDENTITY_PROOF without the requirement naming PAN.

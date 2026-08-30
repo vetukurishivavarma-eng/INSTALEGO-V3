@@ -52,7 +52,10 @@ FIELD_METHOD: dict[str, str] = {
     "income": "amount",
     "loan_amount": "amount",
     "gender": "text",
-    "property_details": "text",
+    "property_address": "address",
+    "property_value": "amount",
+    "survey_number": "exact",
+    "property_owner_name": "name",
 }
 
 

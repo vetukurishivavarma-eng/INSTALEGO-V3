@@ -67,6 +67,26 @@ class MissingDocument(BaseModel):
     required_by: str = ""
 
 
+class DocumentSetStatus(BaseModel):
+    """An optional set of documents, and what the report loses without it.
+
+    Deliberately not a MissingDocument. That type is a finding against the
+    application — a document the bank requires and did not get. This is a
+    statement about the report's own coverage: nothing is wrong, a section is
+    simply not covered, and here is what would cover it. Keeping the two apart
+    is what stops a personal loan being flagged HIGH for having no title deed.
+    """
+
+    key: str
+    title: str
+    satisfied: bool = False
+    # Plain language for what this set adds, used to compose the message.
+    unlocks: str = ""
+    provided: list[str] = Field(default_factory=list)
+    awaiting: list[str] = Field(default_factory=list)
+    message: str = ""
+
+
 class AnalysisVersions(BaseModel):
     """Everything needed to reproduce or explain a result later."""
 
@@ -90,6 +110,8 @@ class CanonicalAnalysis(BaseModel):
     validations: list[ValidationSummary] = Field(default_factory=list)
     discrepancies: list[DiscrepancyOut] = Field(default_factory=list)
     missing_documents: list[MissingDocument] = Field(default_factory=list)
+    # Optional sets and their coverage. Never affects final_status.
+    completeness: list[DocumentSetStatus] = Field(default_factory=list)
     document_quality: list[DocumentSummary] = Field(default_factory=list)
     final_status: OverallStatus = OverallStatus.REVIEW_REQUIRED
     overall_confidence: float = 0.0

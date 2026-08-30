@@ -52,11 +52,26 @@
       "type": "table",
       "mapping": "builtin",
       "columns": [
-        {"key": "filename", "title": "Document"},
-        {"key": "document_type", "title": "Type"},
-        {"key": "pages", "title": "Pages"},
-        {"key": "quality_status", "title": "Quality"},
-        {"key": "status", "title": "Processing"}
+        {
+          "key": "filename",
+          "title": "Document"
+        },
+        {
+          "key": "document_type",
+          "title": "Type"
+        },
+        {
+          "key": "pages",
+          "title": "Pages"
+        },
+        {
+          "key": "quality_status",
+          "title": "Quality"
+        },
+        {
+          "key": "status",
+          "title": "Processing"
+        }
       ]
     },
     {
@@ -65,17 +80,50 @@
       "type": "findings",
       "mapping": "builtin",
       "columns": [
-        {"key": "id", "title": "ID"},
-        {"key": "severity", "title": "Severity"},
-        {"key": "status", "title": "Status"},
-        {"key": "field", "title": "Field"},
-        {"key": "document_1", "title": "Document A"},
-        {"key": "value_1", "title": "Value A"},
-        {"key": "document_2", "title": "Document B"},
-        {"key": "value_2", "title": "Value B"},
-        {"key": "confidence", "title": "Confidence"},
-        {"key": "explanation", "title": "Explanation"},
-        {"key": "recommended_action", "title": "Recommended action"}
+        {
+          "key": "id",
+          "title": "ID"
+        },
+        {
+          "key": "severity",
+          "title": "Severity"
+        },
+        {
+          "key": "status",
+          "title": "Status"
+        },
+        {
+          "key": "field",
+          "title": "Field"
+        },
+        {
+          "key": "document_1",
+          "title": "Document A"
+        },
+        {
+          "key": "value_1",
+          "title": "Value A"
+        },
+        {
+          "key": "document_2",
+          "title": "Document B"
+        },
+        {
+          "key": "value_2",
+          "title": "Value B"
+        },
+        {
+          "key": "confidence",
+          "title": "Confidence"
+        },
+        {
+          "key": "explanation",
+          "title": "Explanation"
+        },
+        {
+          "key": "recommended_action",
+          "title": "Recommended action"
+        }
       ]
     },
     {
@@ -84,9 +132,42 @@
       "type": "table",
       "mapping": "builtin",
       "columns": [
-        {"key": "document_type", "title": "Required document"},
-        {"key": "severity", "title": "Severity"},
-        {"key": "reason", "title": "Reason"}
+        {
+          "key": "document_type",
+          "title": "Required document"
+        },
+        {
+          "key": "severity",
+          "title": "Severity"
+        },
+        {
+          "key": "reason",
+          "title": "Reason"
+        }
+      ]
+    },
+    {
+      "key": "report_coverage",
+      "title": "Report Coverage",
+      "type": "table",
+      "mapping": "builtin",
+      "columns": [
+        {
+          "key": "area",
+          "title": "Area"
+        },
+        {
+          "key": "status",
+          "title": "Status"
+        },
+        {
+          "key": "documents_provided",
+          "title": "Documents provided"
+        },
+        {
+          "key": "action",
+          "title": "To complete this section"
+        }
       ]
     },
     {
@@ -95,10 +176,22 @@
       "type": "table",
       "mapping": "builtin",
       "columns": [
-        {"key": "filename", "title": "Document"},
-        {"key": "quality_status", "title": "Status"},
-        {"key": "quality_flags", "title": "Observations"},
-        {"key": "quality_notes", "title": "Notes"}
+        {
+          "key": "filename",
+          "title": "Document"
+        },
+        {
+          "key": "quality_status",
+          "title": "Status"
+        },
+        {
+          "key": "quality_flags",
+          "title": "Observations"
+        },
+        {
+          "key": "quality_notes",
+          "title": "Notes"
+        }
       ]
     },
     {
@@ -106,12 +199,28 @@
       "title": "Validation Results",
       "type": "table",
       "mapping": "builtin",
-      "include_results": ["FAIL", "REVIEW", "PASS"],
+      "include_results": [
+        "FAIL",
+        "REVIEW",
+        "PASS"
+      ],
       "columns": [
-        {"key": "rule_id", "title": "Rule"},
-        {"key": "result", "title": "Result"},
-        {"key": "field", "title": "Field"},
-        {"key": "reason", "title": "Detail"}
+        {
+          "key": "rule_id",
+          "title": "Rule"
+        },
+        {
+          "key": "result",
+          "title": "Result"
+        },
+        {
+          "key": "field",
+          "title": "Field"
+        },
+        {
+          "key": "reason",
+          "title": "Detail"
+        }
       ]
     },
     {

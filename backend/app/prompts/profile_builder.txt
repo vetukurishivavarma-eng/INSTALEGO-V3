@@ -41,7 +41,10 @@ designation
 income
 bank_account
 loan_amount
-property_details
+property_address
+property_value
+survey_number
+property_owner_name
 
 Return JSON only.
 

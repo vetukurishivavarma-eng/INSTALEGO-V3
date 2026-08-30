@@ -206,6 +206,30 @@ def _missing_documents(analysis: CanonicalAnalysis, section: dict[str, Any]) -> 
     ]
 
 
+def _report_coverage(
+    analysis: CanonicalAnalysis, section: dict[str, Any]
+) -> list[dict[str, Any]]:
+    """What this report does and does not cover, and how to complete it.
+
+    Rendered as an ordinary section rather than folded into the discrepancy
+    table: nothing here is a finding against the applicant. A reviewer reading
+    the report needs to know the difference between "we checked and it is
+    wrong" and "we did not check, and here is what would let us".
+    """
+    return [
+        {
+            "area": item.title,
+            "status": "Covered" if item.satisfied else "Not covered",
+            "documents_provided": ", ".join(
+                name.replace("_", " ").title() for name in item.provided
+            )
+            or "none",
+            "action": item.message,
+        }
+        for item in analysis.completeness
+    ]
+
+
 def _document_quality(analysis: CanonicalAnalysis, section: dict[str, Any]) -> list[dict[str, Any]]:
     return [
         {
@@ -283,6 +307,7 @@ _PRODUCERS = {
     "documents": _documents,
     "discrepancies": _discrepancies,
     "missing_documents": _missing_documents,
+    "report_coverage": _report_coverage,
     "document_quality": _document_quality,
     "validation_results": _validation_results,
     "final_assessment": _final_assessment,

@@ -43,6 +43,13 @@ class DocumentType(StrEnum):
     ITR = "ITR"
     EMPLOYMENT_PROOF = "EMPLOYMENT_PROOF"
     PROPERTY_DOCUMENT = "PROPERTY_DOCUMENT"
+    # Land title documents, finer-grained than PROPERTY_DOCUMENT because the
+    # ownership-history rules need to know which is which: only a deed records
+    # a transfer, and only an encumbrance certificate records a charge.
+    SALE_DEED = "SALE_DEED"
+    ENCUMBRANCE_CERTIFICATE = "ENCUMBRANCE_CERTIFICATE"
+    KHATA_CERTIFICATE = "KHATA_CERTIFICATE"
+    PROPERTY_TAX_RECEIPT = "PROPERTY_TAX_RECEIPT"
     LOAN_APPLICATION = "LOAN_APPLICATION"
     AGREEMENT = "AGREEMENT"
     LEGAL_DOCUMENT = "LEGAL_DOCUMENT"

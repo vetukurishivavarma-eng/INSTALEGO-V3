@@ -1,0 +1,56 @@
+You are reading an encumbrance certificate issued by a sub-registrar.
+
+An encumbrance certificate lists every transaction registered against one
+property over a stated period. Your job is to return that list exactly as
+printed, row by row, and nothing else.
+
+Return JSON only:
+
+{
+"property_description": "",
+"period_from": "",
+"period_to": "",
+"summary": "",
+"notes": "",
+"transactions": [
+{
+"serial": "",
+"date": "",
+"nature": "",
+"executant": "",
+"claimant": "",
+"document_number": "",
+"extent": ""
+}
+]
+}
+
+For each row:
+
+- nature is what the entry is: sale, mortgage, gift, release, partition, lease.
+  Use the certificate's own wording.
+- executant is the party whose interest is leaving. claimant is the party
+  receiving it. A certificate names these by role, and the roles differ by
+  transaction: in a sale the executant is the seller, in a mortgage the
+  executant is the borrower.
+- date is the date of registration as printed. Do not reformat it.
+- Preserve document numbers and survey extents exactly.
+
+Rules:
+
+1. Return every row. Do not summarise, group or skip entries.
+2. Preserve the printed order.
+3. Never invent a row, a party or a date.
+4. Where a cell is blank on the certificate, return an empty string.
+5. Where a cell is present but illegible, write UNCERTAIN in that cell only.
+6. A certificate stating NIL, "no encumbrance" or "NAF" records no
+   transactions: return an empty transactions list and put the wording in
+   summary. This is a normal certificate, not a failure.
+7. Do not judge what the entries mean. Whether a mortgage is subsisting or was
+   released is decided elsewhere; report what is written.
+8. Do not extract anything about the applicant.
+9. Return JSON only.
+
+Completeness matters more here than anywhere else: a chain of title read from
+this list is only as sound as the rows you returned, and a missing row looks
+exactly like a transfer that never happened.

@@ -24,6 +24,7 @@ from app.agents.document_classifier import (
 )
 from app.agents.document_extractor import DocumentExtractorAgent, canonical_field_for
 from app.extraction import ParsedDocument, ParsingError, parse_document
+from app.extraction.locate import locate_text
 from app.extraction.ocr import get_ocr_engine
 from app.llm.client import LLMError
 from app.models.document import Document
@@ -153,6 +154,13 @@ def process_document(db: Session, document: Document) -> DocumentOutcome:
     outcome.models_used.add(extraction_run.model)
     outcome.prompt_versions.add(extraction_run.prompt_version)
 
+    # An encumbrance certificate is a table, not a set of fields, and the field
+    # pass above can only take a summary off it. A second narrow call reads the
+    # rows, which is what lets a chain of title be established from this one
+    # document instead of from a complete set of deeds.
+    if str(classification.document_type) == DocumentType.ENCUMBRANCE_CERTIFICATE:
+        _read_encumbrance_ledger(db, document, parsed, outcome)
+
     document.status = DocumentStatus.EXTRACTED
     document.quality_status = _quality_status(document, parsed)
     document.quality_notes = "; ".join(
@@ -204,6 +212,14 @@ def _persist_field_values(
         canonical = canonical_field_for(item.field) or item.field
         normalized = normalize_field(canonical, item.value)
 
+        # The model is asked for a bounding box and mostly does not supply one:
+        # it is reading text, not measuring a page. Where the page has a text
+        # layer the position can be recovered by looking for the value in it,
+        # which is what turns a citation into a highlight a reviewer can see.
+        bbox = item.source.bbox or _locate(
+            document, item.source.page, item.source.text, item.value
+        )
+
         db.add(
             FieldValue(
                 case_id=document.case_id,
@@ -215,7 +231,7 @@ def _persist_field_values(
                 confidence=item.confidence,
                 page_number=item.source.page or None,
                 source_text=item.source.text or None,
-                bbox=item.source.bbox or None,
+                bbox=bbox or None,
                 document_type=document.document_type,
             )
         )
@@ -223,6 +239,79 @@ def _persist_field_values(
 
     db.flush()
     return stored
+
+
+def _read_encumbrance_ledger(
+    db: Session,
+    document: Document,
+    parsed: ParsedDocument,
+    outcome: DocumentOutcome,
+) -> None:
+    """Read the certificate's table and store it beside the field extraction.
+
+    Stored as its own Extraction row rather than flattened into FieldValues: a
+    list of transactions has no sensible flat shape, and inventing one
+    (ec_txn_3_claimant) would make it unqueryable and unreadable at once.
+
+    A failure here is not a failed document. The field-level extraction has
+    already succeeded, the deeds can still establish the chain, and losing the
+    ledger costs a cross-check rather than the case.
+    """
+    from app.agents.encumbrance_reader import EncumbranceReaderAgent
+
+    try:
+        run = EncumbranceReaderAgent().read(parsed)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "could not read the encumbrance ledger for %s: %s",
+            document.filename,
+            type(exc).__name__,
+        )
+        return
+
+    ledger = run.data
+    db.add(
+        Extraction(
+            case_id=document.case_id,
+            document_id=document.id,
+            agent="EncumbranceReaderAgent",
+            model_name=run.model,
+            prompt_version=run.prompt_version,
+            document_type=str(document.document_type),
+            requested_fields=["transactions"],
+            payload=ledger.model_dump(),
+            pages_used=[p.page_number for p in parsed.pages],
+            prompt_tokens=run.prompt_tokens,
+            completion_tokens=run.completion_tokens,
+            latency_ms=run.latency_ms,
+            attempts=run.attempts,
+        )
+    )
+    db.flush()
+    outcome.models_used.add(run.model)
+    outcome.prompt_versions.add(run.prompt_version)
+    logger.info(
+        "read %d encumbrance transaction(s) from %s",
+        len(ledger.transactions),
+        document.filename,
+    )
+
+
+def _locate(document: Document, page: int, snippet: str | None, value: str | None) -> list[float]:
+    """Recover a bounding box from the document itself, or return nothing.
+
+    Only for text-layer files: a scan has no searchable text, and guessing a
+    rectangle over one would draw a confident highlight in the wrong place.
+    """
+    if not page or page < 1:
+        return []
+    if not str(document.filename or "").lower().endswith(".pdf"):
+        return []
+    try:
+        return locate_text(document_service.local_path(document), page, snippet, value)
+    except Exception:  # noqa: BLE001 - a missing highlight is not a failed document
+        logger.debug("could not resolve a bounding box for %s", document.filename)
+        return []
 
 
 def _quality_status(document: Document, parsed: ParsedDocument) -> str:

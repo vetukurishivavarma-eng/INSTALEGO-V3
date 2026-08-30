@@ -185,12 +185,26 @@ class FieldObservation:
 
 
 @dataclass
+class LedgerView:
+    """An encumbrance certificate's table, as a rule is allowed to see it."""
+
+    document_id: str
+    document_name: str
+    period_from: str = ""
+    period_to: str = ""
+    summary: str = ""
+    transactions: list[dict[str, Any]] = dataclass_field(default_factory=list)
+
+
+@dataclass
 class RuleContext:
     profile: ApplicantProfileSchema
     documents: list[DocumentView]
     observations: list[FieldObservation]
     config: RuleConfig
     as_of: date = dataclass_field(default_factory=date.today)
+    # Encumbrance certificates read as tables rather than as fields.
+    ledgers: list[LedgerView] = dataclass_field(default_factory=list)
 
     def values_for(self, canonical_field: str) -> list[FieldObservation]:
         return [o for o in self.observations if o.canonical_field == canonical_field]

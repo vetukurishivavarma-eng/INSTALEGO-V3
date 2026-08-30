@@ -594,37 +594,63 @@ validated on extension, size and magic bytes.
 
 ---
 
+## What the sweep's findings led to
+
+Every limitation below survived a deliberate attempt to remove it. These did
+not, and each was verified the same way it was found:
+
+| Was | Now |
+|---|---|
+| QA marked **every** `bank_a` report failed, for fields that bank's template excludes | The check runs in Python against the template, where it has an exact answer |
+| An amount in words was read and never compared to the figure beside it | `parse_amount_words` reads Indian number words; a disagreement is HIGH and says the words govern |
+| A borderline document type was recorded as fact | Below 0.70 confidence it raises a flag, marks the document for review, and explains why the type matters |
+| Bounding boxes arrived only if the model volunteered one | Recovered by searching the page, for anything with a text layer |
+| The encumbrance certificate was read as a summary | Read as a ledger: every row, in order, with mortgages distinguished from transfers |
+
+The last one is the largest. An applicant supplies the deed that gave them the
+property and does not hold the deeds of the owners before them, so a chain
+built from deeds is only ever as long as the paperwork that survived. The
+certificate lists every registered transfer over its period, so a gap in the
+middle of the history now surfaces even when no deed for it exists:
+
+```
+EncumbranceCertificate.pdf records the property passing to Meera Reddy on
+14/03/2015, and the next transfer on 02/09/2019 is made by Priya Nair. The
+certificate does not account for how it passed between them.
+```
+
+That was produced live, from a certificate alone, with no deed for the missing
+transfer supplied. The mortgage and its release in the same table were
+correctly not treated as changes of ownership — counting one as a link would
+break the chain of every property that ever carried a loan.
+
+---
+
 ## Known limitations
 
 - **Legacy `.doc` and `.xls`** are accepted at upload but need LibreOffice on
   the path to convert (`.doc`) or are rejected with guidance (`.xls`). Both fail
   with a clear message rather than partially parsing.
-- **Bounding boxes** are stored and rendered when a model supplies them; page
-  images and quoted text carry the evidence when it does not.
+- **Bounding boxes on scans.** For anything with a text layer the highlight is
+  recovered by searching the page, so a citation lands on the words. A scan has
+  nothing to search: the evidence there is still the page image and the quoted
+  text, because a rectangle guessed over a photograph would be a confident
+  claim that is false.
 - **No vector database.** Bank policies and SOPs would need one; the schema and
   storage layer leave room to add pgvector or Qdrant without restructuring.
 - **Single tenant.** `Principal.tenant` exists and is checked, but nothing
   populates it yet.
-- **The encumbrance certificate is read as a summary, not as a ledger.** Its
-  period, its owner and whether it records a charge are extracted; the list of
-  individual transactions inside it is not, because the extraction schema holds
-  flat fields and a transaction list needs structure. The chain of title is
-  therefore built from the deeds themselves. Reading the EC's own table would
-  let a chain be verified from a single document.
-- **The land rules have not been measured against a real model.** The rules and
-  the report path are covered offline against the stub; what a vision model
-  makes of an actual registered deed — dense legal prose, often bilingual, often
-  a photocopy of a photocopy — is unmeasured. The degradation sweep does not
-  cover land documents yet.
+- **Land documents are not in the degradation sweep.** The rules have been run
+  against a real model on clean synthetic documents — six classified correctly,
+  a broken chain found, a certificate's table read row by row — but what a
+  vision model makes of an *actual* registered deed, which is dense legal prose,
+  often bilingual and often a photocopy of a photocopy, is unmeasured. The
+  sweep covers three identity and income layouts and no land ones.
 - **Report QA regenerates once.** A report failing QA twice is stored as
   `QA_FAILED` rather than released.
-- **A figure and its word form are never cross-checked.** Both are read, the
-  digits are used, and a document whose words say something else than its
-  numerals passes unremarked — the opposite of the legal convention.
-- **Document type drives which fields are extracted**, so an unstable
-  classification quietly changes what gets asked for. The prose sanction letter
-  is the case where this shows.
-- **Classification is not fully reproducible run to run.** The prompt now
-  defines the confusable types and the extractor requests the union of a
-  group's fields, so a borderline call no longer changes what is extracted —
-  but the label itself is still a model output and is not guaranteed stable.
+- **Classification is not reproducible run to run.** Three things now blunt
+  the consequences — the prompt defines the confusable types, the extractor
+  requests the union of a group's fields, and a call below 0.70 confidence
+  raises a flag, marks the document for review and says so in the report — but
+  the label itself is a model output and no amount of prompting makes it
+  deterministic.

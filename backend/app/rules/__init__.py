@@ -7,6 +7,7 @@ from app.rules import dates, documents, financial, identity, land  # noqa: F401
 from app.rules.registry import (
     DocumentView,
     FieldObservation,
+    LedgerView,
     RuleConfig,
     RuleContext,
     RuleEngine,
@@ -21,6 +22,7 @@ from app.rules.status import StatusDecision, decide_status, overall_confidence
 __all__ = [
     "DocumentView",
     "FieldObservation",
+    "LedgerView",
     "RuleConfig",
     "RuleContext",
     "RuleEngine",

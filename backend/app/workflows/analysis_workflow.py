@@ -43,11 +43,12 @@ from app.models.enums import (
     Severity,
 )
 from app.models.evidence import Evidence
-from app.models.extraction import FieldValue
+from app.models.extraction import Extraction, FieldValue
 from app.models.validation import ValidationResult
 from app.rules import (
     DocumentView,
     FieldObservation,
+    LedgerView,
     RuleContext,
     RuleEngine,
     decide_status,
@@ -191,6 +192,7 @@ def _run(db: Session, case: Case, config, *, actor: str) -> AnalysisRunResult:  
         observations=observations,
         config=config,
         as_of=date.today(),
+        ledgers=_ledgers(db, case.id),
     )
     rule_outcomes = RuleEngine(config).run(context)
     _persist_validations(db, case, rule_outcomes, config.version)
@@ -388,6 +390,35 @@ def _observations(db: Session, case_id: UUID) -> list[FieldObservation]:
             bbox=value.bbox or [],
         )
         for value, document in rows
+    ]
+
+
+def _ledgers(db: Session, case_id: UUID) -> list[LedgerView]:
+    """Encumbrance certificates that were read as tables.
+
+    Kept out of ``_observations`` because a ledger is not a field value: it is
+    a list, it has no canonical field name, and flattening it into one would
+    lose the ordering the chain depends on.
+    """
+    rows = db.execute(
+        select(Extraction, Document)
+        .join(Document, Document.id == Extraction.document_id)
+        .where(
+            Extraction.case_id == case_id,
+            Extraction.agent == "EncumbranceReaderAgent",
+        )
+    ).all()
+
+    return [
+        LedgerView(
+            document_id=str(extraction.document_id),
+            document_name=document.filename,
+            period_from=str((extraction.payload or {}).get("period_from") or ""),
+            period_to=str((extraction.payload or {}).get("period_to") or ""),
+            summary=str((extraction.payload or {}).get("summary") or ""),
+            transactions=list((extraction.payload or {}).get("transactions") or []),
+        )
+        for extraction, document in rows
     ]
 
 

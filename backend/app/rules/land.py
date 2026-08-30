@@ -617,3 +617,208 @@ def tax_currency(context: RuleContext) -> Iterable[RuleOutcome]:
             deterministic=True,
         ),
     )
+
+
+# --------------------------------------------------------------------------
+# The certificate read as a ledger
+# --------------------------------------------------------------------------
+def _ledger_transfers(ledger) -> list[dict]:  # noqa: ANN001
+    """The rows of a certificate that actually move ownership.
+
+    A mortgage, its release and a lease all sit in the same table as a sale,
+    and only a sale changes who owns the land. Treating a mortgage as a link
+    would break the chain of every property that ever carried a loan.
+    """
+    from app.schemas.extraction import RegisteredTransaction
+
+    transfers = []
+    for row in ledger.transactions:
+        try:
+            parsed = RegisteredTransaction.model_validate(row)
+        except Exception:  # noqa: BLE001 - a malformed row is not a failed rule
+            continue
+        if parsed.is_transfer and parsed.executant and parsed.claimant:
+            transfers.append(
+                {
+                    "executant": parsed.executant,
+                    "claimant": parsed.claimant,
+                    "date": parsed.date,
+                    "nature": parsed.nature,
+                    "iso": (parse_date(parsed.date).iso or "") if parsed.date else "",
+                }
+            )
+    return sorted(transfers, key=lambda t: t["iso"] or "9999-99-99")
+
+
+@rule("land", "ledger_chain")
+def ledger_chain(context: RuleContext) -> Iterable[RuleOutcome]:
+    """Walk the chain recorded inside the encumbrance certificate itself.
+
+    This is the check the deeds cannot make. An applicant supplies the deed
+    that gave them the property and, quite reasonably, does not hold the deeds
+    of the people who owned it before — so a chain built from deeds alone is
+    only ever as long as the paperwork that happened to survive. The
+    certificate lists every registered transfer over its period, which means a
+    break in the middle of the history shows up here even when no deed for it
+    was ever supplied.
+    """
+    rule_id = "land.ledger_chain"
+    severity = context.config.severity("land", "ledger_chain", Severity.HIGH)
+
+    if not context.ledgers:
+        yield _not_applicable(rule_id, "no encumbrance certificate was read as a ledger")
+        return
+
+    thresholds = _thresholds(context)
+
+    for ledger in context.ledgers:
+        transfers = _ledger_transfers(ledger)
+        if len(transfers) < 2:
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="land",
+                result=RuleResult.NOT_APPLICABLE,
+                field="ownership_chain",
+                reason=(
+                    f"{ledger.document_name} records {len(transfers)} transfer(s); "
+                    "a chain needs at least two"
+                ),
+            )
+            continue
+
+        breaks = 0
+        for previous, current in zip(transfers, transfers[1:], strict=False):
+            outcome = compare_field(
+                "name", previous["claimant"], current["executant"], thresholds=thresholds
+            )
+            if outcome.verdict == ComparisonVerdict.EQUAL:
+                continue
+
+            breaks += 1
+            undecided = outcome.verdict != ComparisonVerdict.DIFFERENT
+            summary = (
+                f"{ledger.document_name} records the property passing to "
+                f"{previous['claimant']} on {previous['date']}, and the next "
+                f"transfer on {current['date']} is made by {current['executant']}. "
+                "The certificate does not account for how it passed between them."
+            )
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="land",
+                result=RuleResult.REVIEW if undecided else RuleResult.FAIL,
+                field="ownership_chain",
+                severity=severity,
+                reason=summary,
+                candidate=CandidateDiscrepancy(
+                    type="OWNERSHIP_CHAIN_BREAK",
+                    field="ownership_chain",
+                    severity=severity,
+                    rule_id=rule_id,
+                    origin="RULE_ENGINE",
+                    comparison_method="name",
+                    summary=summary,
+                    values=[previous["claimant"], current["executant"]],
+                    evidence=[],
+                    needs_reasoning=undecided,
+                    deterministic=not undecided,
+                ),
+            )
+
+        if not breaks:
+            yield RuleOutcome(
+                rule_id=rule_id,
+                category="land",
+                result=RuleResult.PASS,
+                field="ownership_chain",
+                reason=(
+                    f"{ledger.document_name} records {len(transfers)} transfers running "
+                    f"unbroken from {transfers[0]['executant']} to {transfers[-1]['claimant']}"
+                ),
+            )
+
+
+@rule("land", "deeds_agree_with_ledger")
+def deeds_agree_with_ledger(context: RuleContext) -> Iterable[RuleOutcome]:
+    """A deed that the registrar's own record does not mention.
+
+    The certificate is the registry's account of what was registered against
+    this property. A deed the applicant supplies that has no counterpart in it
+    is the more serious direction of disagreement: an unregistered or forged
+    conveyance looks exactly like this.
+    """
+    rule_id = "land.deeds_agree_with_ledger"
+    severity = context.config.severity("land", "deeds_agree_with_ledger", Severity.HIGH)
+    deeds = [t for t in _transfers(context) if t.describes_a_transfer]
+
+    if not deeds or not context.ledgers:
+        yield _not_applicable(
+            rule_id, "needs both a sale deed and an encumbrance certificate"
+        )
+        return
+
+    recorded = [row for ledger in context.ledgers for row in _ledger_transfers(ledger)]
+    if not recorded:
+        yield _not_applicable(rule_id, "the certificate records no transfers to compare")
+        return
+
+    thresholds = _thresholds(context)
+    unmatched = 0
+    for deed in deeds:
+        assert deed.seller and deed.buyer
+        matched = any(
+            compare_field(
+                "name", deed.seller.value, row["executant"], thresholds=thresholds
+            ).verdict
+            == ComparisonVerdict.EQUAL
+            and compare_field(
+                "name", deed.buyer.value, row["claimant"], thresholds=thresholds
+            ).verdict
+            == ComparisonVerdict.EQUAL
+            for row in recorded
+        )
+        if matched:
+            continue
+
+        unmatched += 1
+        summary = (
+            f"{deed.document_name} records a transfer from {deed.seller.value} to "
+            f"{deed.buyer.value}, which does not appear in the encumbrance "
+            "certificate for this property."
+        )
+        evidence = [deed.seller.as_evidence(), deed.buyer.as_evidence()]
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="land",
+            result=RuleResult.REVIEW,
+            field="ownership_chain",
+            severity=severity,
+            reason=summary,
+            evidence=evidence,
+            candidate=CandidateDiscrepancy(
+                type="DEED_NOT_IN_ENCUMBRANCE_RECORD",
+                field="ownership_chain",
+                severity=severity,
+                rule_id=rule_id,
+                origin="RULE_ENGINE",
+                comparison_method="name",
+                summary=summary,
+                values=[deed.seller.value, deed.buyer.value],
+                evidence=evidence,
+                # A deed registered outside the certificate's period is the
+                # innocent explanation and is common, so this is surfaced for
+                # judgement rather than asserted.
+                needs_reasoning=True,
+                deterministic=False,
+            ),
+        )
+
+    if not unmatched:
+        yield RuleOutcome(
+            rule_id=rule_id,
+            category="land",
+            result=RuleResult.PASS,
+            field="ownership_chain",
+            reason=(
+                f"all {len(deeds)} supplied deed(s) appear in the encumbrance record"
+            ),
+        )

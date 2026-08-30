@@ -122,6 +122,12 @@ land:
   ownership_chain:
     enabled: true
     severity: HIGH
+  ledger_chain:
+    enabled: true
+    severity: HIGH
+  deeds_agree_with_ledger:
+    enabled: true
+    severity: HIGH
   chain_dates_ordered:
     enabled: true
     severity: MEDIUM

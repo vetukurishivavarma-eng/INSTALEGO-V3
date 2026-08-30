@@ -256,3 +256,66 @@ def make_land_pack(
         directory / "PropertyTaxReceipt.pdf", owner=khata_owner or owner
     )
     return documents
+
+
+def make_encumbrance_certificate_with_table(
+    path: str | Path,
+    *,
+    transactions: list[tuple[str, str, str, str]],
+    period_from: str = "01/01/2013",
+    period_to: str = "01/07/2026",
+    survey_number: str = "42/1B",
+) -> Path:
+    """An EC as one actually looks: a header block over a table of entries.
+
+    ``transactions`` is a list of (date, nature, executant, claimant). The
+    label/value builder cannot express this, and a certificate's whole content
+    is the table — reading it as a summary was the limitation this fixture
+    exists to close.
+    """
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    pdf = canvas.Canvas(str(path), pagesize=A4)
+    width, height = A4
+
+    pdf.setFont("Helvetica-Bold", 14)
+    pdf.drawString(50, height - 60, "ENCUMBRANCE CERTIFICATE")
+    pdf.setFont("Helvetica", 10)
+    pdf.drawString(50, height - 78, "OFFICE OF THE SUB-REGISTRAR, KENGERI, BENGALURU")
+
+    y = height - 110
+    for label, value in (
+        ("Survey Number", survey_number),
+        ("Property Address", "Site 14, Ward 8, Kengeri Hobli, Bengaluru 560060"),
+        ("Period From", period_from),
+        ("Period To", period_to),
+    ):
+        pdf.setFont("Helvetica", 10)
+        pdf.drawString(50, y, f"{label}: {value}")
+        y -= 16
+
+    y -= 14
+    pdf.setFont("Helvetica-Bold", 9)
+    columns = (50, 105, 205, 330, 440)
+    for text, x in zip(
+        ("Sl.", "Date", "Nature", "Executant", "Claimant"), columns, strict=True
+    ):
+        pdf.drawString(x, y, text)
+    pdf.line(50, y - 4, 545, y - 4)
+    y -= 20
+
+    pdf.setFont("Helvetica", 9)
+    for index, (date, nature, executant, claimant) in enumerate(transactions, start=1):
+        for text, x in zip(
+            (str(index), date, nature, executant, claimant), columns, strict=True
+        ):
+            pdf.drawString(x, y, text)
+        y -= 16
+
+    y -= 18
+    pdf.setFont("Helvetica-Oblique", 9)
+    pdf.drawString(
+        50, y, f"{len(transactions)} entries found for the period stated above."
+    )
+    pdf.save()
+    return path
